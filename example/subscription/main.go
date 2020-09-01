@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hgiasac/graphql"
+	graphql "github.com/hasura/go-graphql-client"
 )
 
 func main() {

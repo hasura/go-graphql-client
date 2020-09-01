@@ -1,7 +1,9 @@
-graphql
+go-graphql-client
 =======
 
-[![Build Status](https://travis-ci.org/shurcooL/graphql.svg?branch=master)](https://travis-ci.org/shurcooL/graphql) [![GoDoc](https://godoc.org/github.com/hgiasac/graphql?status.svg)](https://pkg.go.dev/github.com/hgiasac/graphql)
+[![Build Status](https://travis-ci.org/hasura/go-graphql-client.svg?branch=master)](https://travis-ci.org/hasura/go-graphql-client.svg?branch=master) [![GoDoc](https://godoc.org/github.com/hasura/go-graphql-client?status.svg)](https://pkg.go.dev/github.com/hasura/go-graphql-client)
+
+**Preface:** This is a fork of `https://github.com/shurcooL/graphql` with extended features (subscription client, named operation)
 
 Package `graphql` provides a GraphQL client implementation.
 
@@ -12,10 +14,10 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 Installation
 ------------
 
-`graphql` requires Go version 1.8 or later.
+`go-graphql-client` requires Go version 1.13 or later.
 
 ```bash
-go get -u github.com/shurcooL/graphql
+go get -u github.com/hasura/go-graphql-client
 ```
 
 Usage

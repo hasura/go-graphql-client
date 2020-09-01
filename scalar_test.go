@@ -3,7 +3,7 @@ package graphql_test
 import (
 	"testing"
 
-	"github.com/hgiasac/graphql"
+	"github.com/hasura/go-graphql-client"
 )
 
 func TestNewScalars(t *testing.T) {
