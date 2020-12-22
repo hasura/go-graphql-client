@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,7 +92,7 @@ type SubscriptionClient struct {
 	cancel           context.CancelFunc
 	subscribersMu    sync.Mutex
 	timeout          time.Duration
-	isRunning        Boolean
+	isRunning        int64
 	readLimit        int64 // max size of response message. Default 10 MB
 	log              func(args ...interface{})
 	createConn       func(sc *SubscriptionClient) (WebsocketConn, error)
@@ -195,9 +196,11 @@ func (sc *SubscriptionClient) OnDisconnected(fn func()) *SubscriptionClient {
 }
 
 func (sc *SubscriptionClient) setIsRunning(value Boolean) {
-	sc.subscribersMu.Lock()
-	sc.isRunning = value
-	sc.subscribersMu.Unlock()
+	if value {
+		atomic.StoreInt64(&sc.isRunning, 1)
+	} else {
+		atomic.StoreInt64(&sc.isRunning, 0)
+	}
 }
 
 func (sc *SubscriptionClient) init() error {
@@ -304,7 +307,7 @@ func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface
 	}
 
 	// if the websocket client is running, start subscription immediately
-	if sc.isRunning {
+	if atomic.LoadInt64(&sc.isRunning) > 0 {
 		if err := sc.startSubscription(id, &sub); err != nil {
 			return "", err
 		}
@@ -378,7 +381,7 @@ func (sc *SubscriptionClient) Run() error {
 
 	sc.setIsRunning(true)
 
-	for sc.isRunning {
+	for atomic.LoadInt64(&sc.isRunning) > 0 {
 		select {
 		case <-sc.context.Done():
 			return nil
@@ -468,7 +471,7 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	// if the running status is false, stop retrying
-	if !sc.isRunning {
+	if atomic.LoadInt64(&sc.isRunning) == 0 {
 		return nil
 	}
 
@@ -524,7 +527,7 @@ func (sc *SubscriptionClient) terminate() error {
 
 // Reset restart websocket connection and subscriptions
 func (sc *SubscriptionClient) Reset() error {
-	if !sc.isRunning {
+	if atomic.LoadInt64(&sc.isRunning) == 0 {
 		return nil
 	}
 
