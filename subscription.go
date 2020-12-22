@@ -284,9 +284,18 @@ func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variabl
 	return sc.do(v, variables, handler, name)
 }
 
+// SubscribeRaw sends start message to server and open a channel to receive data, with raw query
+func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+	return sc.doRaw(query, variables, handler)
+}
+
 func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, name string) (string, error) {
-	id := uuid.New().String()
 	query := constructSubscription(v, variables, name)
+	return sc.doRaw(query, variables, handler)
+}
+
+func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+	id := uuid.New().String()
 
 	sub := subscription{
 		query:     query,
