@@ -367,12 +367,15 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	// lazily start subscriptions
+	sc.subscribersMu.Lock()
 	for k, v := range sc.subscriptions {
 		if err := sc.startSubscription(k, v); err != nil {
 			sc.Unsubscribe(k)
 			return err
 		}
 	}
+	sc.subscribersMu.Unlock()
+
 	sc.setIsRunning(true)
 
 	for sc.isRunning {
@@ -421,7 +424,11 @@ func (sc *SubscriptionClient) Run() error {
 				if err != nil {
 					continue
 				}
+
+				sc.subscribersMu.Lock()
 				sub, ok := sc.subscriptions[id.String()]
+				sc.subscribersMu.Unlock()
+
 				if !ok {
 					continue
 				}
@@ -471,17 +478,16 @@ func (sc *SubscriptionClient) Run() error {
 // Unsubscribe sends stop message to server and close subscription channel
 // The input parameter is subscription ID that is returned from Subscribe function
 func (sc *SubscriptionClient) Unsubscribe(id string) error {
+	sc.subscribersMu.Lock()
+	defer sc.subscribersMu.Unlock()
+
 	_, ok := sc.subscriptions[id]
 	if !ok {
 		return fmt.Errorf("subscription id %s doesn't not exist", id)
 	}
 
-	err := sc.stopSubscription(id)
-
-	sc.subscribersMu.Lock()
 	delete(sc.subscriptions, id)
-	sc.subscribersMu.Unlock()
-	return err
+	return sc.stopSubscription(id)
 }
 
 func (sc *SubscriptionClient) stopSubscription(id string) error {
@@ -522,10 +528,12 @@ func (sc *SubscriptionClient) Reset() error {
 		return nil
 	}
 
+	sc.subscribersMu.Lock()
 	for id, sub := range sc.subscriptions {
 		_ = sc.stopSubscription(id)
 		sub.started = false
 	}
+	sc.subscribersMu.Unlock()
 
 	if sc.conn != nil {
 		_ = sc.terminate()
@@ -540,12 +548,16 @@ func (sc *SubscriptionClient) Reset() error {
 // Close closes all subscription channel and websocket as well
 func (sc *SubscriptionClient) Close() (err error) {
 	sc.setIsRunning(false)
+
+	sc.subscribersMu.Lock()
 	for id := range sc.subscriptions {
 		if err = sc.Unsubscribe(id); err != nil {
 			sc.cancel()
 			return err
 		}
 	}
+	sc.subscribersMu.Unlock()
+
 	if sc.conn != nil {
 		_ = sc.terminate()
 		err = sc.conn.Close()
