@@ -107,7 +107,7 @@ var q struct {
 	Human struct {
 		Name   graphql.String
 		Height graphql.Float `graphql:"height(unit: METER)"`
-	} `graphql:"human(id: \"1000\")"`
+	} `graphql:"human(where: {id: {_eq: \"1000\"}})"`
 }
 ```
 
@@ -133,7 +133,7 @@ var q struct {
 	Human struct {
 		Name   graphql.String
 		Height graphql.Float `graphql:"height(unit: $unit)"`
-	} `graphql:"human(id: $id)"`
+	} `graphql:"human(where: {id: {_eq: $id}})"`
 }
 ```
 
