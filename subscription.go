@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,7 @@ type subscription struct {
 // SubscriptionClient is a GraphQL subscription client.
 type SubscriptionClient struct {
 	url              string
+	httpClient       *http.Client
 	conn             WebsocketConn
 	connectionParams map[string]interface{}
 	context          context.Context
@@ -134,6 +136,12 @@ func (sc *SubscriptionClient) GetTimeout() time.Duration {
 // In default, subscription client uses https://github.com/nhooyr/websocket
 func (sc *SubscriptionClient) WithWebSocket(fn func(sc *SubscriptionClient) (WebsocketConn, error)) *SubscriptionClient {
 	sc.createConn = fn
+	return sc
+}
+
+// WithHTTPClient set custom *http.Client
+func (sc *SubscriptionClient) WithHTTPClient(client *http.Client) *SubscriptionClient {
+	sc.httpClient = client
 	return sc
 }
 
@@ -575,6 +583,9 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 
 	options := &websocket.DialOptions{
 		Subprotocols: []string{"graphql-ws"},
+	}
+	if sc.httpClient != nil {
+		options.HTTPClient = sc.httpClient
 	}
 	c, _, err := websocket.Dial(sc.GetContext(), sc.GetURL(), options)
 	if err != nil {
