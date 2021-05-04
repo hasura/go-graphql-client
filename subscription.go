@@ -212,7 +212,7 @@ func (sc *SubscriptionClient) init() error {
 		var conn WebsocketConn
 		// allow custom websocket client
 		if sc.conn == nil {
-			conn, err = newWebsocketConn(sc)
+			conn, err = sc.createConn(sc)
 			if err == nil {
 				sc.conn = conn
 			}
