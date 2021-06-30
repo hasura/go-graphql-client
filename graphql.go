@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/hasura/go-graphql-client/internal/jsonutil"
 	"golang.org/x/net/context/ctxhttp"
@@ -190,7 +191,7 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 //
 // Specification: https://facebook.github.io/graphql/#sec-Errors.
 type errors []struct {
-	Message   string
+	Message   []string
 	Locations []struct {
 		Line   int
 		Column int
@@ -199,7 +200,7 @@ type errors []struct {
 
 // Error implements error interface.
 func (e errors) Error() string {
-	return e[0].Message
+	return strings.Join(e[0].Message, ";")
 }
 
 type operationType uint8
