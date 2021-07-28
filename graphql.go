@@ -144,9 +144,11 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
+		OperationName     string         `json:"operationName,omitempty"`
 	}{
 		Query:     query,
 		Variables: variables,
+		OperationName: name,
 	}
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(in)
