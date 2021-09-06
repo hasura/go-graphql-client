@@ -88,10 +88,11 @@ type SubscriptionClient struct {
 	connectionParams map[string]interface{}
 	context          context.Context
 	subscriptions    map[string]*subscription
+	subscriptionsMu  sync.RWMutex
 	cancel           context.CancelFunc
-	subscribersMu    sync.Mutex
 	timeout          time.Duration
 	isRunning        Boolean
+	isRunningMu      sync.RWMutex
 	readLimit        int64 // max size of response message. Default 10 MB
 	log              func(args ...interface{})
 	createConn       func(sc *SubscriptionClient) (WebsocketConn, error)
@@ -194,10 +195,16 @@ func (sc *SubscriptionClient) OnDisconnected(fn func()) *SubscriptionClient {
 	return sc
 }
 
+func (sc *SubscriptionClient) getIsRunning() Boolean {
+	sc.isRunningMu.RLock()
+	defer sc.isRunningMu.RUnlock()
+	return sc.isRunning
+}
+
 func (sc *SubscriptionClient) setIsRunning(value Boolean) {
-	sc.subscribersMu.Lock()
+	sc.isRunningMu.Lock()
 	sc.isRunning = value
-	sc.subscribersMu.Unlock()
+	sc.isRunningMu.Unlock()
 }
 
 func (sc *SubscriptionClient) init() error {
@@ -295,15 +302,15 @@ func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}
 	}
 
 	// if the websocket client is running, start subscription immediately
-	if sc.isRunning {
+	if sc.getIsRunning() {
 		if err := sc.startSubscription(id, &sub); err != nil {
 			return "", err
 		}
 	}
 
-	sc.subscribersMu.Lock()
+	sc.subscriptionsMu.Lock()
 	sc.subscriptions[id] = &sub
-	sc.subscribersMu.Unlock()
+	sc.subscriptionsMu.Unlock()
 
 	return id, nil
 }
@@ -366,7 +373,7 @@ func (sc *SubscriptionClient) Run() error {
 	}
 	sc.setIsRunning(true)
 
-	for sc.isRunning {
+	for sc.getIsRunning() {
 		select {
 		case <-sc.context.Done():
 			return nil
@@ -452,7 +459,7 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	// if the running status is false, stop retrying
-	if !sc.isRunning {
+	if !sc.getIsRunning() {
 		return nil
 	}
 
@@ -462,16 +469,18 @@ func (sc *SubscriptionClient) Run() error {
 // Unsubscribe sends stop message to server and close subscription channel
 // The input parameter is subscription ID that is returned from Subscribe function
 func (sc *SubscriptionClient) Unsubscribe(id string) error {
+	sc.subscriptionsMu.RLock()
 	_, ok := sc.subscriptions[id]
+	sc.subscriptionsMu.RUnlock()
 	if !ok {
-		return fmt.Errorf("subscription id %s doesn't not exist", id)
+		return fmt.Errorf("subscription id %s does not exist", id)
 	}
 
 	err := sc.stopSubscription(id)
 
-	sc.subscribersMu.Lock()
+	sc.subscriptionsMu.Lock()
 	delete(sc.subscriptions, id)
-	sc.subscribersMu.Unlock()
+	sc.subscriptionsMu.Unlock()
 	return err
 }
 
@@ -509,7 +518,7 @@ func (sc *SubscriptionClient) terminate() error {
 
 // Reset restart websocket connection and subscriptions
 func (sc *SubscriptionClient) Reset() error {
-	if !sc.isRunning {
+	if !sc.getIsRunning() {
 		return nil
 	}
 
