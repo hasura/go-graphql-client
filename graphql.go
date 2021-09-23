@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hasura/go-graphql-client/internal/jsonutil"
 	"golang.org/x/net/context/ctxhttp"
+
+	"github.com/hasura/go-graphql-client/internal/jsonutil"
 )
 
 // Client is a GraphQL client.
@@ -38,9 +39,21 @@ func (c *Client) Query(ctx context.Context, q interface{}, variables map[string]
 	return c.do(ctx, queryOperation, q, variables, "")
 }
 
+// CachedQuery executes a single GraphQL cached query request,
+// with a query derived from q, populating the response into it.
+// q should be a pointer to struct that corresponds to the GraphQL schema.
+func (c *Client) CachedQuery(ctx context.Context, q interface{}, ttl int) error {
+	return c.do(ctx, queryOperation, q, map[string]interface{}{}, fmt.Sprintf("@cached(ttl: %d)", ttl))
+}
+
 // NamedQuery executes a single GraphQL query request, with operation name
 func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, variables map[string]interface{}) error {
 	return c.do(ctx, queryOperation, q, variables, name)
+}
+
+// CachedNamedQuery executes a single GraphQL cached query request, with operation name
+func (c *Client) CachedNamedQuery(ctx context.Context, name string, q interface{}, ttl int) error {
+	return c.do(ctx, queryOperation, q, map[string]interface{}{}, fmt.Sprintf("%s @cached(ttl: %d)", name, ttl))
 }
 
 // Mutate executes a single GraphQL mutation request,
@@ -55,7 +68,7 @@ func (c *Client) NamedMutate(ctx context.Context, name string, m interface{}, va
 	return c.do(ctx, mutationOperation, m, variables, name)
 }
 
-// Query executes a single GraphQL query request,
+// QueryRaw executes a single GraphQL query request,
 // with a query derived from q, populating the response into it.
 // q should be a pointer to struct that corresponds to the GraphQL schema.
 // return raw bytes message.
@@ -63,10 +76,24 @@ func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[stri
 	return c.doRaw(ctx, queryOperation, q, variables, "")
 }
 
+// CachedQueryRaw executes a single GraphQL cached query request,
+// with a query derived from q, populating the response into it.
+// q should be a pointer to struct that corresponds to the GraphQL schema.
+// return raw bytes message.
+func (c *Client) CachedQueryRaw(ctx context.Context, q interface{}, ttl int) (*json.RawMessage, error) {
+	return c.doRaw(ctx, queryOperation, q, map[string]interface{}{}, fmt.Sprintf("@cached(ttl: %d)", ttl))
+}
+
 // NamedQueryRaw executes a single GraphQL query request, with operation name
 // return raw bytes message.
 func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error) {
 	return c.doRaw(ctx, queryOperation, q, variables, name)
+}
+
+// CachedNamedQueryRaw executes a single GraphQL cached query request, with operation name
+// return raw bytes message.
+func (c *Client) CachedNamedQueryRaw(ctx context.Context, name string, q interface{}, ttl int) (*json.RawMessage, error) {
+	return c.doRaw(ctx, queryOperation, q, map[string]interface{}{}, fmt.Sprintf("%s @cached(ttl: %d)", name, ttl))
 }
 
 // MutateRaw executes a single GraphQL mutation request,

@@ -473,6 +473,20 @@ func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, 
 func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
 ```
 
+### Cached queries
+
+Hasura Cloud provides support for caching query responses, in order to improve performance for queries which are executed frequently.
+
+```Go
+func (c *Client) CachedQuery(ctx context.Context, q interface{}, ttl int) error
+
+func (c *Client) CachedNamedQuery(ctx context.Context, name string, q interface{}, ttl int) error
+
+func (c *Client) CachedQueryRaw(ctx context.Context, q interface{}, ttl int) (*json.RawMessage, error)
+
+func (c *Client) CachedNamedQueryRaw(ctx context.Context, name string, q interface{}, ttl int) (*json.RawMessage, error)
+```
+
 Directories
 -----------
 
