@@ -282,6 +282,55 @@ fmt.Printf("Created a %v star review: %v\n", m.CreateReview.Stars, m.CreateRevie
 // Created a 5 star review: This is a great movie!
 ```
 
+#### Mutations Without Fields
+
+Sometimes, you don't need any fields returned from a mutation. Doing that is easy.
+
+For example, to make the following GraphQL mutation:
+
+```GraphQL
+mutation($ep: Episode!, $review: ReviewInput!) {
+	createReview(episode: $ep, review: $review)
+}
+variables {
+	"ep": "JEDI",
+	"review": {
+		"stars": 5,
+		"commentary": "This is a great movie!"
+	}
+}
+```
+
+You can define:
+
+```Go
+var m struct {
+	CreateReview string `graphql:"createReview(episode: $ep, review: $review)"`
+}
+variables := map[string]interface{}{
+	"ep": starwars.Episode("JEDI"),
+	"review": starwars.ReviewInput{
+		Stars:      graphql.Int(5),
+		Commentary: graphql.String("This is a great movie!"),
+	},
+}
+```
+
+Then call `client.Mutate`:
+
+```Go
+err := client.Mutate(context.Background(), &m, variables)
+if err != nil {
+	// Handle error.
+}
+fmt.Printf("Created a review: %s.\n", m.CreateReview)
+
+// Output:
+// Created a review: .
+```
+
+
+
 ### Subscription
 
 Usage
