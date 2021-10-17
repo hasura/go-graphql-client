@@ -1,14 +1,30 @@
 package graphql
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
 )
 
+type cachedDirective struct {
+	ttl int
+}
+
+func (cd cachedDirective) Type() OptionType {
+	return OptionTypeOperationDirective
+}
+
+func (cd cachedDirective) String() string {
+	if cd.ttl <= 0 {
+		return "@cached"
+	}
+	return fmt.Sprintf("@cached(ttl: %d)", cd.ttl)
+}
+
 func TestConstructQuery(t *testing.T) {
 	tests := []struct {
-		name        string
+		options     []Option
 		inV         interface{}
 		inVariables map[string]interface{}
 		want        string
@@ -31,7 +47,7 @@ func TestConstructQuery(t *testing.T) {
 			want: `{viewer{login,createdAt,id,databaseId},rateLimit{cost,limit,remaining,resetAt}}`,
 		},
 		{
-			name: "GetRepository",
+			options: []Option{OperationName("GetRepository"), cachedDirective{}},
 			inV: struct {
 				Repository struct {
 					DatabaseID Int
@@ -55,7 +71,7 @@ func TestConstructQuery(t *testing.T) {
 					} `graphql:"issue(number:1)"`
 				} `graphql:"repository(owner:\"shurcooL-test\"name:\"test-repo\")"`
 			}{},
-			want: `query GetRepository{repository(owner:"shurcooL-test"name:"test-repo"){databaseId,url,issue(number:1){comments(first:1after:"Y3Vyc29yOjE5NTE4NDI1Ng=="){edges{node{body,author{login},editor{login}},cursor}}}}}`,
+			want: `query GetRepository @cached {repository(owner:"shurcooL-test"name:"test-repo"){databaseId,url,issue(number:1){comments(first:1after:"Y3Vyc29yOjE5NTE4NDI1Ng=="){edges{node{body,author{login},editor{login}},cursor}}}}}`,
 		},
 		{
 			inV: func() interface{} {
@@ -170,7 +186,7 @@ func TestConstructQuery(t *testing.T) {
 			want: `query ($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){body}}}`,
 		},
 		{
-			name: "SearchRepository",
+			options: []Option{OperationName("SearchRepository"), cachedDirective{100}},
 			inV: struct {
 				Repository struct {
 					Issue struct {
@@ -189,7 +205,7 @@ func TestConstructQuery(t *testing.T) {
 				"repositoryName":  String("test-repo"),
 				"issueNumber":     Int(1),
 			},
-			want: `query SearchRepository($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
+			want: `query SearchRepository($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!) @cached(ttl: 100) {repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
 		},
 		// Embedded structs without graphql tag should be inlined in query.
 		{
@@ -232,8 +248,10 @@ func TestConstructQuery(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got := constructQuery(tc.inV, tc.inVariables, tc.name)
-		if got != tc.want {
+		got, err := constructQuery(tc.inV, tc.inVariables, tc.options...)
+		if err != nil {
+			t.Error(err)
+		} else if got != tc.want {
 			t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
 		}
 	}
@@ -267,8 +285,10 @@ func TestConstructMutation(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got := constructMutation(tc.inV, tc.inVariables, "")
-		if got != tc.want {
+		got, err := constructMutation(tc.inV, tc.inVariables)
+		if err != nil {
+			t.Error(err)
+		} else if got != tc.want {
 			t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
 		}
 	}
@@ -500,8 +520,10 @@ func TestConstructSubscription(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got := constructSubscription(tc.inV, tc.inVariables, tc.name)
-		if got != tc.want {
+		got, err := constructSubscription(tc.inV, tc.inVariables, OperationName(tc.name))
+		if err != nil {
+			t.Error(err)
+		} else if got != tc.want {
 			t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
 		}
 	}

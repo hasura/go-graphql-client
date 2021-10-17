@@ -3,45 +3,94 @@ package graphql
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/hasura/go-graphql-client/ident"
 )
 
-func constructQuery(v interface{}, variables map[string]interface{}, name string) string {
-	query := query(v)
-	if len(variables) > 0 {
-		return "query " + name + "(" + queryArguments(variables) + ")" + query
-	}
-
-	if name != "" {
-		return "query " + name + query
-	}
-	return query
+type constructOptionsOutput struct {
+	operationName       string
+	operationDirectives []string
 }
 
-func constructMutation(v interface{}, variables map[string]interface{}, name string) string {
-	query := query(v)
-	if len(variables) > 0 {
-		return "mutation " + name + "(" + queryArguments(variables) + ")" + query
+func (coo constructOptionsOutput) OperationDirectivesString() string {
+	operationDirectivesStr := strings.Join(coo.operationDirectives, " ")
+	if operationDirectivesStr != "" {
+		return fmt.Sprintf(" %s ", operationDirectivesStr)
 	}
-	if name != "" {
-		return "mutation " + name + query
-	}
-	return "mutation" + query
+	return ""
 }
 
-func constructSubscription(v interface{}, variables map[string]interface{}, name string) string {
+func constructOptions(options []Option) (*constructOptionsOutput, error) {
+	output := &constructOptionsOutput{}
+
+	for _, option := range options {
+		switch option.Type() {
+		case optionTypeOperationName:
+			output.operationName = option.String()
+		case OptionTypeOperationDirective:
+			output.operationDirectives = append(output.operationDirectives, option.String())
+		default:
+			return nil, fmt.Errorf("invalid query option type: %s", option.Type())
+		}
+	}
+
+	return output, nil
+}
+
+func constructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
 	query := query(v)
+
+	optionsOutput, err := constructOptions(options)
+	if err != nil {
+		return "", err
+	}
+
 	if len(variables) > 0 {
-		return "subscription " + name + "(" + queryArguments(variables) + ")" + query
+		return fmt.Sprintf("query %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), nil
 	}
-	if name != "" {
-		return "subscription " + name + query
+
+	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
+		return query, nil
 	}
-	return "subscription" + query
+
+	return fmt.Sprintf("query %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
+}
+
+func constructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+	query := query(v)
+	optionsOutput, err := constructOptions(options)
+	if err != nil {
+		return "", err
+	}
+	if len(variables) > 0 {
+		return fmt.Sprintf("mutation %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), nil
+	}
+
+	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
+		return "mutation" + query, nil
+	}
+
+	return fmt.Sprintf("mutation %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
+}
+
+func constructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+	query := query(v)
+	optionsOutput, err := constructOptions(options)
+	if err != nil {
+		return "", err
+	}
+	if len(variables) > 0 {
+		return fmt.Sprintf("subscription %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), nil
+	}
+	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
+		return "subscription" + query, nil
+	}
+	return fmt.Sprintf("subscription %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
 }
 
 // queryArguments constructs a minified arguments string for variables.

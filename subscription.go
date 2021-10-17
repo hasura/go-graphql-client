@@ -278,13 +278,15 @@ func (sc *SubscriptionClient) sendConnectionInit() (err error) {
 // Subscribe sends start message to server and open a channel to receive data.
 // The handler callback function will receive raw message data or error. If the call return error, onError event will be triggered
 // The function returns subscription ID and error. You can use subscription ID to unsubscribe the subscription
-func (sc *SubscriptionClient) Subscribe(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
-	return sc.do(v, variables, handler, "")
+func (sc *SubscriptionClient) Subscribe(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+	return sc.do(v, variables, handler, options...)
 }
 
 // NamedSubscribe sends start message to server and open a channel to receive data, with operation name
-func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
-	return sc.do(v, variables, handler, name)
+//
+// Deprecated: this is the shortcut of Subscribe method, with NewOperationName option
+func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+	return sc.do(v, variables, handler, append(options, OperationName(name))...)
 }
 
 // SubscribeRaw sends start message to server and open a channel to receive data, with raw query
@@ -292,8 +294,12 @@ func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]in
 	return sc.doRaw(query, variables, handler)
 }
 
-func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, name string) (string, error) {
-	query := constructSubscription(v, variables, name)
+func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+	query, err := constructSubscription(v, variables, options...)
+	if err != nil {
+		return "", err
+	}
+
 	return sc.doRaw(query, variables, handler)
 }
 

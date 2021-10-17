@@ -34,65 +34,75 @@ func NewClient(url string, httpClient *http.Client) *Client {
 // Query executes a single GraphQL query request,
 // with a query derived from q, populating the response into it.
 // q should be a pointer to struct that corresponds to the GraphQL schema.
-func (c *Client) Query(ctx context.Context, q interface{}, variables map[string]interface{}) error {
-	return c.do(ctx, queryOperation, q, variables, "")
+func (c *Client) Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error {
+	return c.do(ctx, queryOperation, q, variables, options...)
 }
 
 // NamedQuery executes a single GraphQL query request, with operation name
-func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, variables map[string]interface{}) error {
-	return c.do(ctx, queryOperation, q, variables, name)
+//
+// Deprecated: this is the shortcut of Query method, with NewOperationName option
+func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, variables map[string]interface{}, options ...Option) error {
+	return c.do(ctx, queryOperation, q, variables, append(options, OperationName(name))...)
 }
 
 // Mutate executes a single GraphQL mutation request,
 // with a mutation derived from m, populating the response into it.
 // m should be a pointer to struct that corresponds to the GraphQL schema.
-func (c *Client) Mutate(ctx context.Context, m interface{}, variables map[string]interface{}) error {
-	return c.do(ctx, mutationOperation, m, variables, "")
+func (c *Client) Mutate(ctx context.Context, m interface{}, variables map[string]interface{}, options ...Option) error {
+	return c.do(ctx, mutationOperation, m, variables, options...)
 }
 
 // NamedMutate executes a single GraphQL mutation request, with operation name
-func (c *Client) NamedMutate(ctx context.Context, name string, m interface{}, variables map[string]interface{}) error {
-	return c.do(ctx, mutationOperation, m, variables, name)
+//
+// Deprecated: this is the shortcut of Mutate method, with NewOperationName option
+func (c *Client) NamedMutate(ctx context.Context, name string, m interface{}, variables map[string]interface{}, options ...Option) error {
+	return c.do(ctx, mutationOperation, m, variables, append(options, OperationName(name))...)
 }
 
 // Query executes a single GraphQL query request,
 // with a query derived from q, populating the response into it.
 // q should be a pointer to struct that corresponds to the GraphQL schema.
 // return raw bytes message.
-func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}) (*json.RawMessage, error) {
-	return c.doRaw(ctx, queryOperation, q, variables, "")
+func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) (*json.RawMessage, error) {
+	return c.doRaw(ctx, queryOperation, q, variables, options...)
 }
 
 // NamedQueryRaw executes a single GraphQL query request, with operation name
 // return raw bytes message.
-func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error) {
-	return c.doRaw(ctx, queryOperation, q, variables, name)
+func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}, options ...Option) (*json.RawMessage, error) {
+	return c.doRaw(ctx, queryOperation, q, variables, append(options, OperationName(name))...)
 }
 
 // MutateRaw executes a single GraphQL mutation request,
 // with a mutation derived from m, populating the response into it.
 // m should be a pointer to struct that corresponds to the GraphQL schema.
 // return raw bytes message.
-func (c *Client) MutateRaw(ctx context.Context, m interface{}, variables map[string]interface{}) (*json.RawMessage, error) {
-	return c.doRaw(ctx, mutationOperation, m, variables, "")
+func (c *Client) MutateRaw(ctx context.Context, m interface{}, variables map[string]interface{}, options ...Option) (*json.RawMessage, error) {
+	return c.doRaw(ctx, mutationOperation, m, variables, options...)
 }
 
 // NamedMutateRaw executes a single GraphQL mutation request, with operation name
 // return raw bytes message.
-func (c *Client) NamedMutateRaw(ctx context.Context, name string, m interface{}, variables map[string]interface{}) (*json.RawMessage, error) {
-	return c.doRaw(ctx, mutationOperation, m, variables, name)
+func (c *Client) NamedMutateRaw(ctx context.Context, name string, m interface{}, variables map[string]interface{}, options ...Option) (*json.RawMessage, error) {
+	return c.doRaw(ctx, mutationOperation, m, variables, append(options, OperationName(name))...)
 }
 
 // do executes a single GraphQL operation.
 // return raw message and error
-func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, name string) (*json.RawMessage, error) {
+func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, options ...Option) (*json.RawMessage, error) {
 	var query string
+	var err error
 	switch op {
 	case queryOperation:
-		query = constructQuery(v, variables, name)
+		query, err = constructQuery(v, variables, options...)
 	case mutationOperation:
-		query = constructMutation(v, variables, name)
+		query, err = constructMutation(v, variables, options...)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
@@ -101,7 +111,7 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 		Variables: variables,
 	}
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(in)
+	err = json.NewEncoder(&buf).Encode(in)
 	if err != nil {
 		return nil, err
 	}
@@ -133,15 +143,21 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 }
 
 // do executes a single GraphQL operation and unmarshal json.
-func (c *Client) do(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, name string) error {
+func (c *Client) do(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, options ...Option) error {
 
 	var query string
+	var err error
 	switch op {
 	case queryOperation:
-		query = constructQuery(v, variables, name)
+		query, err = constructQuery(v, variables, options...)
 	case mutationOperation:
-		query = constructMutation(v, variables, name)
+		query, err = constructMutation(v, variables, options...)
 	}
+
+	if err != nil {
+		return err
+	}
+
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
@@ -150,7 +166,7 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 		Variables: variables,
 	}
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(in)
+	err = json.NewEncoder(&buf).Encode(in)
 	if err != nil {
 		return err
 	}

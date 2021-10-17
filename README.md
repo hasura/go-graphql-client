@@ -13,8 +13,30 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 
 **Status:** In active early research and development. The API will change when opportunities for improvement are discovered; it is not yet frozen.
 
-Installation
-------------
+- [go-graphql-client](#go-graphql-client)
+	- [Installation](#installation)
+	- [Usage](#usage)
+		- [Authentication](#authentication)
+		- [Simple Query](#simple-query)
+		- [Arguments and Variables](#arguments-and-variables)
+		- [Inline Fragments](#inline-fragments)
+		- [Mutations](#mutations)
+			- [Mutations Without Fields](#mutations-without-fields)
+		- [Subscription](#subscription)
+			- [Usage](#usage-1)
+			- [Subscribe](#subscribe)
+			- [Authentication](#authentication-1)
+			- [Options](#options)
+			- [Events](#events)
+			- [Custom WebSocket client](#custom-websocket-client)
+		- [Options](#options-1)
+		- [With operation name (deprecated)](#with-operation-name-deprecated)
+		- [Raw bytes response](#raw-bytes-response)
+	- [Directories](#directories)
+	- [References](#references)
+	- [License](#license)
+  
+## Installation
 
 `go-graphql-client` requires Go version 1.13 or later.
 
@@ -22,8 +44,7 @@ Installation
 go get -u github.com/hasura/go-graphql-client
 ```
 
-Usage
------
+## Usage
 
 Construct a GraphQL client, specifying the GraphQL server URL. Then, you can use it to make GraphQL queries and mutations.
 
@@ -329,12 +350,9 @@ fmt.Printf("Created a review: %s.\n", m.CreateReview)
 // Created a review: .
 ```
 
-
-
 ### Subscription
 
-Usage
------
+#### Usage
 
 Construct a Subscription client, specifying the GraphQL server URL.
 
@@ -495,8 +513,56 @@ client.WithWebSocket(newWebsocketConn)
 client.Run()
 ```
 
+### Options
 
-### With operation name
+There are extensible parts in the GraphQL query that we sometimes use. They are optional so that we shouldn't required them in the method. To make it flexible, we can abstract these options as optional arguments that follow this interface.
+
+```go
+type Option interface {
+	Type() OptionType
+	String() string
+}
+
+client.Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error
+```
+
+Currently we support 2 option types: `operation_name` and `operation_directive`. The operation name option is built-in because it is unique. We can use the option directly with `OperationName`
+
+```go
+// query MyQuery {
+//	...
+// }
+client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"))
+```
+
+In contrast, operation directive is various and customizable on different GraphQL servers. There isn't any built-in directive in the library. You need to define yourself. For example:
+
+```go
+// define @cached directive for Hasura queries
+// https://hasura.io/docs/latest/graphql/cloud/response-caching.html#enable-caching
+type cachedDirective struct {
+	ttl int
+}
+
+func (cd cachedDirective) Type() OptionType {
+	// operation_directive
+	return graphql.OptionTypeOperationDirective
+}
+
+func (cd cachedDirective) String() string {
+	if cd.ttl <= 0 {
+		return "@cached"
+	}
+	return fmt.Sprintf("@cached(ttl: %d)", cd.ttl)
+}
+
+// query MyQuery @cached {
+//	...
+// }
+client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"), cachedDirective{})
+```
+
+### With operation name (deprecated)
 
 Operation name is still on API decision plan https://github.com/shurcooL/graphql/issues/12. However, in my opinion separate methods are easier choice to avoid breaking changes
 
