@@ -588,6 +588,44 @@ func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, 
 func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
 ```
 
+### Multiple mutations with ordered map
+
+You might need to make multiple mutations in single query. It's not very convenient with structs
+so you can use ordered map `[][2]interface{}` instead.
+
+For example, to make the following GraphQL mutation:
+
+```GraphQL
+mutation($login1: String!, $login2: String!, $login3: String!) {
+	createUser(login: $login1) { login }
+	createUser(login: $login2) { login }
+	createUser(login: $login3) { login }
+}
+variables {
+	"login1": "grihabor",
+	"login2": "diman",
+	"login3": "indigo"
+}
+```
+
+You can define:
+
+```Go
+type CreateUser struct {
+	Login graphql.String
+}
+m := [][2]interface{}{
+	{"createUser(login: $login1)", &CreateUser{}},
+	{"createUser(login: $login2)", &CreateUser{}},
+	{"createUser(login: $login3)", &CreateUser{}},
+}
+variables := map[string]interface{}{
+	"login1": graphql.String("grihabor"),
+	"login2": graphql.String("diman"),
+	"login3": graphql.String("indigo"),
+}
+```
+
 Directories
 -----------
 
