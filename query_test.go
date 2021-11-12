@@ -231,7 +231,7 @@ func TestConstructQuery(t *testing.T) {
 				"repositoryName":  String("test-repo"),
 				"issueNumber":     Int(1),
 			},
-			want: `query($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
+			want: `query ($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
 		},
 		// check inner maps work inside slices
 		{
@@ -264,7 +264,7 @@ func TestConstructQuery(t *testing.T) {
 				"repositoryName":  String("test-repo"),
 				"issueNumber":     Int(1),
 			},
-			want: `query($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
+			want: `query ($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
 		},
 		// Embedded structs without graphql tag should be inlined in query.
 		{
@@ -359,7 +359,7 @@ func TestConstructMutation(t *testing.T) {
 				"login1": String("grihabor"),
 				"login2": String("diman"),
 			},
-			want: "mutation($login1:String!$login2:String!){createUser(login:$login1){login}deleteUser(login:$login2){login}}",
+			want: "mutation ($login1:String!$login2:String!){createUser(login:$login1){login}deleteUser(login:$login2){login}}",
 		},
 	}
 	for _, tc := range tests {
