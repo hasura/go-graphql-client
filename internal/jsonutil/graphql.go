@@ -160,7 +160,11 @@ func (d *decoder) decode() error {
 				if v.Kind() == reflect.Slice {
 					// we want to append the template item copy
 					// so that all the inner structure gets preserved
-					v.Set(reflect.Append(v, copyTemplate(v.Index(0)))) // v = append(v, T).
+					copied, err := copyTemplate(v.Index(0))
+					if err != nil {
+						return fmt.Errorf("failed to copy template: %w", err)
+					}
+					v.Set(reflect.Append(v, copied)) // v = append(v, T).
 					f = v.Index(v.Len() - 1)
 					someSliceExist = true
 				}
@@ -260,8 +264,7 @@ func (d *decoder) decode() error {
 						// if there is a template, we need to keep it at index 0
 						newSlice = reflect.Append(newSlice, v.Index(0))
 					case 2:
-						msg := fmt.Sprintf("template slice can only have 1 item")
-						panic(msg)
+						return fmt.Errorf("template slice can only have 1 item, got %d", v.Len())
 					}
 					v.Set(newSlice)
 				}
@@ -284,17 +287,16 @@ func (d *decoder) decode() error {
 	return nil
 }
 
-func copyTemplate(template reflect.Value) reflect.Value {
+func copyTemplate(template reflect.Value) (reflect.Value, error) {
 	if isOrderedMap(template) {
 		// copy slice if it's actually an ordered map
-		return copyOrderedMap(template)
+		return copyOrderedMap(template), nil
 	}
 	if template.Kind() == reflect.Map {
-		msg := fmt.Sprintf("unsupported template type `%v`, use [][2]interface{} for ordered map instead", template.Type())
-		panic(msg)
+		return reflect.Value{}, fmt.Errorf("unsupported template type `%v`, use [][2]interface{} for ordered map instead", template.Type())
 	}
 	// don't need to copy regular slice
-	return template
+	return template, nil
 }
 
 func isOrderedMap(v reflect.Value) bool {
