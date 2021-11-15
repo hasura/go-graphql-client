@@ -123,6 +123,34 @@ func TestUnmarshalGraphQL_orderedMap(t *testing.T) {
 	}
 }
 
+func TestUnmarshalGraphQL_orderedMapAlias(t *testing.T) {
+	type Update struct {
+		Name graphql.String `graphql:"name"`
+	}
+	got := [][2]interface{}{
+		{"update0:update(name:$name0)", &Update{}},
+		{"update1:update(name:$name1)", &Update{}},
+	}
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+      "update0": {
+        "name": "grihabor",
+      },
+      "update1": {
+        "name": "diman",
+      }
+}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]interface{}{
+		{"update0:update(name:$name0)", &Update{Name: "grihabor"}},
+		{"update1:update(name:$name1)", &Update{Name: "diman"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("not equal: %v != %v", got, want)
+	}
+}
+
 func TestUnmarshalGraphQL_array(t *testing.T) {
 	type query struct {
 		Foo []graphql.String
