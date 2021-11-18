@@ -133,10 +133,10 @@ func TestUnmarshalGraphQL_orderedMapAlias(t *testing.T) {
 	}
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
       "update0": {
-        "name": "grihabor",
+        "name": "grihabor"
       },
       "update1": {
-        "name": "diman",
+        "name": "diman"
       }
 }`), &got)
 	if err != nil {

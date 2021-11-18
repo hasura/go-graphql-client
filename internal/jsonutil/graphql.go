@@ -106,7 +106,7 @@ func (d *decoder) decode() error {
 			rawMessage := false
 			for i := range d.vs {
 				v := d.vs[i].Top()
-				if v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
 				var f reflect.Value
@@ -153,7 +153,7 @@ func (d *decoder) decode() error {
 			someSliceExist := false
 			for i := range d.vs {
 				v := d.vs[i].Top()
-				if v.Kind() == reflect.Ptr {
+				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
 				var f reflect.Value
@@ -212,7 +212,7 @@ func (d *decoder) decode() error {
 				for len(frontier) > 0 {
 					v := frontier[0]
 					frontier = frontier[1:]
-					if v.Kind() == reflect.Ptr {
+					for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 						v = v.Elem()
 					}
 					if v.Kind() == reflect.Struct {
@@ -248,7 +248,7 @@ func (d *decoder) decode() error {
 					//}
 
 					// Reset slice to empty (in case it had non-zero initial value).
-					if v.Kind() == reflect.Ptr {
+					for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 						v = v.Elem()
 					}
 					if v.Kind() != reflect.Slice {
