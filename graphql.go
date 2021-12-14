@@ -126,8 +126,7 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 	}
 	var out struct {
 		Data   *json.RawMessage
-		Errors errors
-		//Extensions interface{} // Unused.
+		Errors Errors
 	}
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
@@ -181,8 +180,7 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	}
 	var out struct {
 		Data   *json.RawMessage
-		Errors errors
-		//Extensions interface{} // Unused.
+		Errors Errors
 	}
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
@@ -206,16 +204,17 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 // If returned via error interface, the slice is expected to contain at least 1 element.
 //
 // Specification: https://facebook.github.io/graphql/#sec-Errors.
-type errors []struct {
-	Message   string
-	Locations []struct {
+type Errors []struct {
+	Message    string
+	Extensions map[string]interface{}
+	Locations  []struct {
 		Line   int
 		Column int
 	}
 }
 
 // Error implements error interface.
-func (e errors) Error() string {
+func (e Errors) Error() string {
 	b := strings.Builder{}
 	for _, err := range e {
 		b.WriteString(fmt.Sprintf("Message: %s, Locations: %+v", err.Message, err.Locations))

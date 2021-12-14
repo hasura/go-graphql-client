@@ -443,8 +443,7 @@ func (sc *SubscriptionClient) Run() error {
 				}
 				var out struct {
 					Data   *json.RawMessage
-					Errors errors
-					//Extensions interface{} // Unused.
+					Errors Errors
 				}
 
 				err = json.Unmarshal(message.Payload, &out)
