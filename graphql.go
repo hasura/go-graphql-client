@@ -10,13 +10,17 @@ import (
 	"strings"
 
 	"github.com/hasura/go-graphql-client/internal/jsonutil"
-	"golang.org/x/net/context/ctxhttp"
 )
+
+// This function allows you to tweak the HTTP request. It might be useful to set authentication
+// headers  amongst other things
+type RequestModifier func(*http.Request)
 
 // Client is a GraphQL client.
 type Client struct {
-	url        string // GraphQL server URL.
-	httpClient *http.Client
+	url             string // GraphQL server URL.
+	httpClient      *http.Client
+	requestModifier RequestModifier
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
@@ -26,8 +30,9 @@ func NewClient(url string, httpClient *http.Client) *Client {
 		httpClient = http.DefaultClient
 	}
 	return &Client{
-		url:        url,
-		httpClient: httpClient,
+		url:             url,
+		httpClient:      httpClient,
+		requestModifier: nil,
 	}
 }
 
@@ -115,7 +120,18 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 	if err != nil {
 		return nil, err
 	}
-	resp, err := ctxhttp.Post(ctx, c.httpClient, c.url, "application/json", &buf)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("problem constructing request: %w", err)
+	}
+	request.Header.Add("Content-Type", "application/json")
+
+	if c.requestModifier != nil {
+		c.requestModifier(request)
+	}
+
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +159,6 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 
 // do executes a single GraphQL operation and unmarshal json.
 func (c *Client) do(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, options ...Option) error {
-
 	var query string
 	var err error
 	switch op {
@@ -169,7 +184,18 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	if err != nil {
 		return err
 	}
-	resp, err := ctxhttp.Post(ctx, c.httpClient, c.url, "application/json", &buf)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, &buf)
+	if err != nil {
+		return fmt.Errorf("problem constructing request: %w", err)
+	}
+	request.Header.Add("Content-Type", "application/json")
+
+	if c.requestModifier != nil {
+		c.requestModifier(request)
+	}
+
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -200,6 +226,17 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	return nil
 }
 
+// Returns a copy of the client with the request modifier set. This allows you to reuse the same
+// TCP connection for multiple slghtly different requests to the same server
+// (i.e. different authentication headers for multitenant applications)
+func (c *Client) WithRequestModifier(f RequestModifier) *Client {
+	return &Client{
+		url:             c.url,
+		httpClient:      c.httpClient,
+		requestModifier: f,
+	}
+}
+
 // errors represents the "errors" array in a response from a GraphQL server.
 // If returned via error interface, the slice is expected to contain at least 1 element.
 //
@@ -227,5 +264,5 @@ type operationType uint8
 const (
 	queryOperation operationType = iota
 	mutationOperation
-	//subscriptionOperation // Unused.
+	// subscriptionOperation // Unused.
 )
