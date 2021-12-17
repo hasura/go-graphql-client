@@ -137,7 +137,10 @@ func (d *decoder) decode() error {
 			if rawMessage || isScalar {
 				// Read the next complete object from the json stream
 				var data json.RawMessage
-				_ = d.tokenizer.Decode(&data)
+				err = d.tokenizer.Decode(&data)
+				if err != nil {
+					return err
+				}
 				tok = data
 			} else {
 				// We've just consumed the current token, which was the key.
