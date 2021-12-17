@@ -305,6 +305,29 @@ func TestConstructQuery(t *testing.T) {
 			}{},
 			want: `{viewer{login,createdAt,id,databaseId}}`,
 		},
+		{
+			inV: struct {
+				Viewer struct {
+					ID         interface{}
+					Login      string
+					CreatedAt  time.Time
+					DatabaseID int
+				}
+				Tags map[string]interface{} `scalar:"true"`
+			}{},
+			want: `{viewer{id,login,createdAt,databaseId},tags}`,
+		},
+		{
+			inV: struct {
+				Viewer struct {
+					ID         interface{}
+					Login      string
+					CreatedAt  time.Time
+					DatabaseID int
+				} `scalar:"true"`
+			}{},
+			want: `{viewer}`,
+		},
 	}
 	for _, tc := range tests {
 		got, err := constructQuery(tc.inV, tc.inVariables, tc.options...)

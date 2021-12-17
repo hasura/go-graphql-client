@@ -104,6 +104,42 @@ func TestUnmarshalGraphQL_jsonRawTag(t *testing.T) {
 	}
 }
 
+func TestUnmarshalGraphQL_fieldAsScalar(t *testing.T) {
+	type query struct {
+		Data    json.RawMessage  `scalar:"true"`
+		DataPtr *json.RawMessage `scalar:"true"`
+		Another string
+		Tags    map[string]int `scalar:"true"`
+	}
+	var got query
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+                "Data" : {"ValA":1,"ValB":"foo"},
+                "DataPtr" : {"ValC":3,"ValD":false},
+		"Another" : "stuff",
+                "Tags": {
+                    "keyA": 2,
+                    "keyB": 3
+                }
+        }`), &got)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataPtr := json.RawMessage(`{"ValC":3,"ValD":false}`)
+	want := query{
+		Data:    json.RawMessage(`{"ValA":1,"ValB":"foo"}`),
+		DataPtr: &dataPtr,
+		Another: "stuff",
+		Tags: map[string]int{
+			"keyA": 2,
+			"keyB": 3,
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("not equal: %v %v", want, got)
+	}
+}
+
 func TestUnmarshalGraphQL_orderedMap(t *testing.T) {
 	type query [][2]interface{}
 	got := query{

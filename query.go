@@ -7,6 +7,7 @@ import (
 	"io"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hasura/go-graphql-client/ident"
@@ -187,6 +188,10 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) {
 					io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
 				}
 			}
+			// Skip writeQuery if the GraphQL type associated with the filed is scalar
+			if isTrue(f.Tag.Get("scalar")) {
+				continue
+			}
 			writeQuery(w, f.Type, FieldSafe(v, i), inlineField)
 		}
 		if !inline {
@@ -241,3 +246,8 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 }
 
 var jsonUnmarshaler = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+
+func isTrue(s string) bool {
+	b, _ := strconv.ParseBool(s)
+	return b
+}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -104,6 +105,7 @@ func (d *decoder) decode() error {
 			someFieldExist := false
 			// If one field is raw all must be treated as raw
 			rawMessage := false
+			isScalar := false
 			for i := range d.vs {
 				v := d.vs[i].Top()
 				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
@@ -112,7 +114,7 @@ func (d *decoder) decode() error {
 				var f reflect.Value
 				switch v.Kind() {
 				case reflect.Struct:
-					f = fieldByGraphQLName(v, key)
+					f, isScalar = fieldByGraphQLName(v, key)
 					if f.IsValid() {
 						someFieldExist = true
 						// Check for special embedded json
@@ -132,10 +134,10 @@ func (d *decoder) decode() error {
 				return fmt.Errorf("struct field for %q doesn't exist in any of %v places to unmarshal", key, len(d.vs))
 			}
 
-			if rawMessage {
+			if rawMessage || isScalar {
 				// Read the next complete object from the json stream
 				var data json.RawMessage
-				d.tokenizer.Decode(&data)
+				_ = d.tokenizer.Decode(&data)
 				tok = data
 			} else {
 				// We've just consumed the current token, which was the key.
@@ -361,17 +363,17 @@ func (d *decoder) popLeftArrayTemplates() {
 
 // fieldByGraphQLName returns an exported struct field of struct v
 // that matches GraphQL name, or invalid reflect.Value if none found.
-func fieldByGraphQLName(v reflect.Value, name string) reflect.Value {
+func fieldByGraphQLName(v reflect.Value, name string) (val reflect.Value, taggedAsScalar bool) {
 	for i := 0; i < v.NumField(); i++ {
 		if v.Type().Field(i).PkgPath != "" {
 			// Skip unexported field.
 			continue
 		}
 		if hasGraphQLName(v.Type().Field(i), name) {
-			return v.Field(i)
+			return v.Field(i), hasScalarTag(v.Type().Field(i))
 		}
 	}
-	return reflect.Value{}
+	return reflect.Value{}, false
 }
 
 // orderedMapValueByGraphQLName takes [][2]string, interprets it as an ordered map
@@ -385,6 +387,15 @@ func orderedMapValueByGraphQLName(v reflect.Value, name string) reflect.Value {
 		}
 	}
 	return reflect.Value{}
+}
+
+func hasScalarTag(f reflect.StructField) bool {
+	return isTrue(f.Tag.Get("scalar"))
+}
+
+func isTrue(s string) bool {
+	b, _ := strconv.ParseBool(s)
+	return b
 }
 
 // hasGraphQLName reports whether struct field f has GraphQL name.
