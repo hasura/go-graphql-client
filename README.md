@@ -19,6 +19,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Authentication](#authentication)
 		- [Simple Query](#simple-query)
 		- [Arguments and Variables](#arguments-and-variables)
+		- [Custom scalar tag](#custom-scalar-tag)
 		- [Inline Fragments](#inline-fragments)
 		- [Mutations](#mutations)
 			- [Mutations Without Fields](#mutations-without-fields)
@@ -32,6 +33,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Options](#options-1)
 		- [With operation name (deprecated)](#with-operation-name-deprecated)
 		- [Raw bytes response](#raw-bytes-response)
+		- [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
 	- [Directories](#directories)
 	- [References](#references)
 	- [License](#license)
@@ -174,6 +176,43 @@ err := client.Query(context.Background(), &q, variables)
 if err != nil {
 	// Handle error.
 }
+```
+
+### Custom scalar tag
+
+Because the generator reflects recursively struct objects, it can't know if the struct is a custom scalar such as JSON. To avoid expansion of the field during query generation, let's add the tag `scalar:"true"` to the custom scalar. If the scalar implements the JSON decoder interface, it will be automatically decoded.
+
+```Go
+struct {
+	Viewer struct {
+		ID         interface{}
+		Login      string
+		CreatedAt  time.Time
+		DatabaseID int
+	}
+}
+
+// Output:
+// {
+//   viewer {
+//	   id
+//		 login
+//		 createdAt
+//		 databaseId
+//   }	
+// }
+
+struct {
+	Viewer struct {
+		ID         interface{}
+		Login      string
+		CreatedAt  time.Time
+		DatabaseID int
+	} `scalar:"true"`
+}
+
+// Output
+// { viewer }
 ```
 
 ### Inline Fragments
