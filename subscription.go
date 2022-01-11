@@ -557,14 +557,12 @@ func (sc *SubscriptionClient) Reset() error {
 func (sc *SubscriptionClient) Close() (err error) {
 	sc.setIsRunning(false)
 
-	sc.subscribersMu.Lock()
 	for id := range sc.subscriptions {
 		if err = sc.Unsubscribe(id); err != nil {
 			sc.cancel()
 			return err
 		}
 	}
-	sc.subscribersMu.Unlock()
 
 	if sc.conn != nil {
 		_ = sc.terminate()
