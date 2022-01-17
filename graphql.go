@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -200,15 +201,26 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 		return err
 	}
 	defer resp.Body.Close()
+
+	r := resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		r, err = gzip.NewReader(r)
+		if err != nil {
+			return fmt.Errorf("problem trying to create gzip reader: %w", err)
+		}
+		defer r.Close()
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := ioutil.ReadAll(r)
 		return fmt.Errorf("non-200 OK status code: %v body: %q", resp.Status, body)
 	}
 	var out struct {
 		Data   *json.RawMessage
 		Errors Errors
 	}
-	err = json.NewDecoder(resp.Body).Decode(&out)
+
+	err = json.NewDecoder(r).Decode(&out)
 	if err != nil {
 		// TODO: Consider including response body in returned error, if deemed helpful.
 		return err
