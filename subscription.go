@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,6 +88,7 @@ type SubscriptionClient struct {
 	url              string
 	conn             WebsocketConn
 	connectionParams map[string]interface{}
+	websocketOptions WebsocketOptions
 	context          context.Context
 	subscriptions    map[string]*subscription
 	cancel           context.CancelFunc
@@ -135,6 +137,12 @@ func (sc *SubscriptionClient) GetTimeout() time.Duration {
 // In default, subscription client uses https://github.com/nhooyr/websocket
 func (sc *SubscriptionClient) WithWebSocket(fn func(sc *SubscriptionClient) (WebsocketConn, error)) *SubscriptionClient {
 	sc.createConn = fn
+	return sc
+}
+
+// WithWebSocketOptions provides options to the websocket client
+func (sc *SubscriptionClient) WithWebSocketOptions(options WebsocketOptions) *SubscriptionClient {
+	sc.websocketOptions = options
 	return sc
 }
 
@@ -602,7 +610,9 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 
 	options := &websocket.DialOptions{
 		Subprotocols: []string{"graphql-ws"},
+		HTTPClient:   sc.websocketOptions.HTTPClient,
 	}
+
 	c, _, err := websocket.Dial(sc.GetContext(), sc.GetURL(), options)
 	if err != nil {
 		return nil, err
@@ -613,4 +623,10 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 		Conn:    c,
 		timeout: sc.GetTimeout(),
 	}, nil
+}
+
+// WebsocketOptions allows implementation agnostic configuration of the websocket client
+type WebsocketOptions struct {
+	// HTTPClient is used for the connection.
+	HTTPClient *http.Client
 }
