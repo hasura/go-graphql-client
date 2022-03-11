@@ -356,6 +356,16 @@ func (e Error) withResponse(res *http.Response, bodyReader io.Reader) Error {
 	return e
 }
 
+// UnmarshalGraphQL parses the JSON-encoded GraphQL response data and stores
+// the result in the GraphQL query data structure pointed to by v.
+//
+// The implementation is created on top of the JSON tokenizer available
+// in "encoding/json".Decoder.
+// This function is re-exported from the internal package
+func UnmarshalGraphQL(data []byte, v interface{}) error {
+	return jsonutil.UnmarshalGraphQL(data, v)
+}
+
 type operationType uint8
 
 const (

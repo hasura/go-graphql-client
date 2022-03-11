@@ -727,6 +727,10 @@ func ConstructMutation(v interface{}, variables map[string]interface{}, options 
 
 // ConstructSubscription build GraphQL subscription string from struct and variables
 func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) 
+
+// UnmarshalGraphQL parses the JSON-encoded GraphQL response data and stores
+// the result in the GraphQL query data structure pointed to by v.
+func UnmarshalGraphQL(data []byte, v interface{}) error 
 ```
 
 Directories
