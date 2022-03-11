@@ -29,6 +29,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 			- [Authentication](#authentication-1)
 			- [Options](#options)
 			- [Events](#events)
+			- [Custom HTTP Client](#custom-http-client)
 			- [Custom WebSocket client](#custom-websocket-client)
 		- [Options](#options-1)
 		- [With operation name (deprecated)](#with-operation-name-deprecated)
@@ -499,6 +500,19 @@ client.OnDisconnected(fn func())
 // If this function is empty, or returns nil, the error is ignored
 // If returns error, the websocket connection will be terminated
 client.OnError(onError func(sc *SubscriptionClient, err error) error)
+```
+
+#### Custom HTTP Client
+
+Use `WithWebSocketOptions` to customize the HTTP client which is used by the subscription client.
+
+```go
+client.WithWebSocketOptions(WebsocketOptions{
+	HTTPClient: &http.Client{
+		Transport: http.DefaultTransport,
+		Timeout: time.Minute,
+	}
+})
 ```
 
 #### Custom WebSocket client
