@@ -330,7 +330,7 @@ func TestConstructQuery(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got, err := constructQuery(tc.inV, tc.inVariables, tc.options...)
+		got, err := ConstructQuery(tc.inV, tc.inVariables, tc.options...)
 		if err != nil {
 			t.Error(err)
 		} else if got != tc.want {
@@ -386,7 +386,7 @@ func TestConstructMutation(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got, err := constructMutation(tc.inV, tc.inVariables)
+		got, err := ConstructMutation(tc.inV, tc.inVariables)
 		if err != nil {
 			t.Error(err)
 		} else if got != tc.want {
@@ -621,7 +621,7 @@ func TestConstructSubscription(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got, err := constructSubscription(tc.inV, tc.inVariables, OperationName(tc.name))
+		got, err := ConstructSubscription(tc.inV, tc.inVariables, OperationName(tc.name))
 		if err != nil {
 			t.Error(err)
 		} else if got != tc.want {

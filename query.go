@@ -43,7 +43,8 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 	return output, nil
 }
 
-func constructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+// ConstructQuery build GraphQL query string from struct and variables
+func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
 	query := query(v)
 
 	optionsOutput, err := constructOptions(options)
@@ -62,7 +63,8 @@ func constructQuery(v interface{}, variables map[string]interface{}, options ...
 	return fmt.Sprintf("query %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
 }
 
-func constructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+// ConstructQuery build GraphQL mutation string from struct and variables
+func ConstructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
 	query := query(v)
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
@@ -79,7 +81,8 @@ func constructMutation(v interface{}, variables map[string]interface{}, options 
 	return fmt.Sprintf("mutation %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
 }
 
-func constructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+// ConstructSubscription build GraphQL subscription string from struct and variables
+func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
 	query := query(v)
 	optionsOutput, err := constructOptions(options)
 	if err != nil {

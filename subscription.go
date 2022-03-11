@@ -303,7 +303,7 @@ func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]in
 }
 
 func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
-	query, err := constructSubscription(v, variables, options...)
+	query, err := ConstructSubscription(v, variables, options...)
 	if err != nil {
 		return "", err
 	}

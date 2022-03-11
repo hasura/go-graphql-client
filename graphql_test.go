@@ -3,6 +3,7 @@ package graphql_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -119,6 +120,21 @@ func TestClient_Query_partialDataRawQueryWithErrorResponse(t *testing.T) {
 	if q.Node2 != nil {
 		t.Errorf("got non-nil q.Node2: %v, want: nil\n", *q.Node2)
 	}
+
+	// test internal error data
+	client = client.WithDebug(true)
+	err = client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+	if !errors.As(err, &graphql.Errors{}) {
+		t.Errorf("the error type should be graphql.Errors")
+	}
+
+	gqlErr := err.(graphql.Errors)
+	if got, want := gqlErr[0].Message, `Could not resolve to a node with the global id of 'NotExist'`; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
 }
 
 func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
@@ -161,6 +177,29 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
+
+	// test internal error data
+	client = client.WithDebug(true)
+	err = client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+	if !errors.As(err, &graphql.Errors{}) {
+		t.Errorf("the error type should be graphql.Errors")
+	}
+
+	gqlErr := err.(graphql.Errors)
+	if got, want := gqlErr[0].Message, `Field 'user' is missing required arguments: login`; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+
+	interErr := gqlErr[0].Extensions["internal"].(map[string]interface{})
+
+	if got, want := interErr["request"].(map[string]interface{})["body"], "{\"query\":\"{user{name}}\"}\n"; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	b, _ := json.Marshal(gqlErr)
+	panic(string(b))
 }
 
 func TestClient_Query_errorStatusCode(t *testing.T) {
@@ -179,11 +218,41 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), `non-200 OK status code: 500 Internal Server Error body: "important message\n"`; got != want {
+	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: []`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
 		t.Errorf("got non-empty q.User.Name: %v", q.User.Name)
+	}
+
+	gqlErr := err.(graphql.Errors)
+	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if _, ok := gqlErr[0].Extensions["internal"]; ok {
+		t.Errorf("expected empty internal error")
+	}
+
+	// test internal error data
+	client = client.WithDebug(true)
+	err = client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+	if !errors.As(err, &graphql.Errors{}) {
+		t.Errorf("the error type should be graphql.Errors")
+	}
+	gqlErr = err.(graphql.Errors)
+	if got, want := gqlErr[0].Message, `500 Internal Server Error; body: "important message\n"`; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	interErr := gqlErr[0].Extensions["internal"].(map[string]interface{})
+
+	if got, want := interErr["request"].(map[string]interface{})["body"], "{\"query\":\"{user{name}}\"}\n"; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
 	}
 }
 
