@@ -198,8 +198,6 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 	if got, want := interErr["request"].(map[string]interface{})["body"], "{\"query\":\"{user{name}}\"}\n"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
-	b, _ := json.Marshal(gqlErr)
-	panic(string(b))
 }
 
 func TestClient_Query_errorStatusCode(t *testing.T) {
