@@ -20,6 +20,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Simple Query](#simple-query)
 		- [Arguments and Variables](#arguments-and-variables)
 		- [Custom scalar tag](#custom-scalar-tag)
+		- [Skip GraphQL field](#skip-graphql-field)
 		- [Inline Fragments](#inline-fragments)
 		- [Mutations](#mutations)
 			- [Mutations Without Fields](#mutations-without-fields)
@@ -215,6 +216,22 @@ struct {
 
 // Output
 // { viewer }
+```
+
+### Skip GraphQL field
+
+```go
+struct {
+  Viewer struct {
+		ID         interface{} `graphql:"-"`
+		Login      string
+		CreatedAt  time.Time `graphql:"-"`
+		DatabaseID int
+  }
+}
+
+// Output
+// {viewer{login,databaseId}}
 ```
 
 ### Inline Fragments
