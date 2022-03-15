@@ -177,12 +177,19 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) {
 		if !inline {
 			io.WriteString(w, "{")
 		}
+		iter := 0
 		for i := 0; i < t.NumField(); i++ {
-			if i != 0 {
-				io.WriteString(w, ",")
-			}
 			f := t.Field(i)
 			value, ok := f.Tag.Lookup("graphql")
+			// Skip this field if the tag value is hyphen
+			if value == "-" {
+				continue
+			}
+			if iter != 0 {
+				io.WriteString(w, ",")
+			}
+			iter++
+
 			inlineField := f.Anonymous && !ok
 			if !inlineField {
 				if ok {

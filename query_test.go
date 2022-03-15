@@ -328,6 +328,17 @@ func TestConstructQuery(t *testing.T) {
 			}{},
 			want: `{viewer}`,
 		},
+		{
+			inV: struct {
+				Viewer struct {
+					ID         interface{} `graphql:"-"`
+					Login      string
+					CreatedAt  time.Time `graphql:"-"`
+					DatabaseID int
+				}
+			}{},
+			want: `{viewer{login,databaseId}}`,
+		},
 	}
 	for _, tc := range tests {
 		got, err := ConstructQuery(tc.inV, tc.inVariables, tc.options...)
