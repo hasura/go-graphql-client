@@ -110,6 +110,11 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
 	}
 
+	return c.request(ctx, query, variables, options...)
+}
+
+// Request the common method that send graphql request
+func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options ...Option) (*json.RawMessage, *http.Response, io.Reader, Errors) {
 	in := struct {
 		Query     string                 `json:"query"`
 		Variables map[string]interface{} `json:"variables,omitempty"`
@@ -118,7 +123,7 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 		Variables: variables,
 	}
 	var buf bytes.Buffer
-	err = json.NewEncoder(&buf).Encode(in)
+	err := json.NewEncoder(&buf).Encode(in)
 	if err != nil {
 		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
 	}
@@ -231,7 +236,15 @@ func (c *Client) doRaw(ctx context.Context, op operationType, v interface{}, var
 // do executes a single GraphQL operation and unmarshal json.
 func (c *Client) do(ctx context.Context, op operationType, v interface{}, variables map[string]interface{}, options ...Option) error {
 	data, resp, respBuf, errs := c.buildAndRequest(ctx, op, v, variables, options...)
+	return c.processResponse(v, data, resp, respBuf, errs)
+}
 
+func (c *Client) DoWithQuery(ctx context.Context, query string, v interface{}, variables map[string]interface{}, options ...Option) error {
+	data, resp, respBuf, errs := c.request(ctx, query, variables, options...)
+	return c.processResponse(v, data, resp, respBuf, errs)
+}
+
+func (c *Client) processResponse(v interface{}, data *json.RawMessage, resp *http.Response, respBuf io.Reader, errs Errors) error {
 	if data != nil {
 		err := jsonutil.UnmarshalGraphQL(*data, v)
 		if err != nil {
