@@ -239,7 +239,9 @@ func (c *Client) do(ctx context.Context, op operationType, v interface{}, variab
 	return c.processResponse(v, data, resp, respBuf, errs)
 }
 
-func (c *Client) DoWithQuery(ctx context.Context, query string, v interface{}, variables map[string]interface{}, options ...Option) error {
+// Executes a pre-built query and unmarshals the response into v. Unlike the Query method you have to specify in the query the
+// fields that you want to receive as they are not inferred from v. This method is useful if you need to build the query dynamically.
+func (c *Client) Exec(ctx context.Context, query string, v interface{}, variables map[string]interface{}, options ...Option) error {
 	data, resp, respBuf, errs := c.request(ctx, query, variables, options...)
 	return c.processResponse(v, data, resp, respBuf, errs)
 }
