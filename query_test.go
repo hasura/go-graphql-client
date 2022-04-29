@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type cachedDirective struct {
@@ -582,14 +584,15 @@ func TestConstructSubscription(t *testing.T) {
 							} `graphql:"users(first:10)"`
 						}
 					} `graphql:"issue(number: $issueNumber)"`
-				} `graphql:"repository(owner: $repositoryOwner, name: $repositoryName)"`
+				} `graphql:"repository(owner: $repositoryOwner, name: $repositoryName, review: $userReview)"`
 			}{},
 			inVariables: map[string]interface{}{
 				"repositoryOwner": String("shurcooL-test"),
 				"repositoryName":  String("test-repo"),
 				"issueNumber":     Int(1),
+				"review":          UserReview{},
 			},
-			want: `subscription SearchRepository($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!){repository(owner: $repositoryOwner, name: $repositoryName){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
+			want: `subscription SearchRepository($issueNumber:Int!$repositoryName:String!$repositoryOwner:String!$review:user_review!){repository(owner: $repositoryOwner, name: $repositoryName, review: $userReview){issue(number: $issueNumber){reactionGroups{users(first:10){nodes{login}}}}}}`,
 		},
 		// Embedded structs without graphql tag should be inlined in query.
 		{
@@ -683,6 +686,18 @@ func TestQueryArguments(t *testing.T) {
 			in:   map[string]interface{}{"ids": &[]ID{"someID", "anotherID"}},
 			want: `$ids:[ID!]`,
 		},
+		{
+			in: map[string]interface{}{
+				"id":           Uuid(uuid.New()),
+				"id_optional":  &val,
+				"ids":          []Uuid{},
+				"ids_optional": []*Uuid{},
+				"my_uuid":      MyUuid(uuid.New()),
+				"review":       UserReview{},
+				"review_input": UserReviewInput{},
+			},
+			want: `$id:uuid!$id_optional:uuid$ids:[uuid!]!$ids_optional:[uuid]!$my_uuid:my_uuid!$review:user_review!$review_input:user_review_input!`,
+		},
 	}
 	for i, tc := range tests {
 		got := queryArguments(tc.in)
@@ -691,6 +706,27 @@ func TestQueryArguments(t *testing.T) {
 		}
 	}
 }
+
+var val Uuid
+
+type Uuid uuid.UUID
+
+func (u Uuid) GetGraphQLType() string { return "uuid" }
+
+type MyUuid Uuid
+
+type UserReview struct {
+	Review String
+	UserID String
+}
+
+type UserReviewInput UserReview
+
+func (u UserReview) GetGraphQLType() string { return "user_review" }
+
+func (u UserReviewInput) GetGraphQLType() string { return "user_review_input" }
+
+func (u MyUuid) GetGraphQLType() string { return "my_uuid" }
 
 // Custom GraphQL types for testing.
 type (

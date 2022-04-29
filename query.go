@@ -132,6 +132,18 @@ func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
 		return
 	}
 
+	if t.Implements(graphqlTypeInterface) {
+		graphqlType, ok := reflect.Zero(t).Interface().(GraphQLType)
+		if ok {
+			io.WriteString(w, graphqlType.GetGraphQLType())
+			if value {
+				// Value is a required type, so add "!" to the end.
+				io.WriteString(w, "!")
+			}
+			return
+		}
+	}
+
 	switch t.Kind() {
 	case reflect.Slice, reflect.Array:
 		// List. E.g., "[Int]".
@@ -141,9 +153,11 @@ func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
 	default:
 		// Named type. E.g., "Int".
 		name := t.Name()
+
 		if name == "string" { // HACK: Workaround for https://github.com/shurcooL/githubv4/issues/12.
 			name = "ID"
 		}
+
 		io.WriteString(w, name)
 	}
 
@@ -256,6 +270,8 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 }
 
 var jsonUnmarshaler = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+
+var graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
 
 func isTrue(s string) bool {
 	b, _ := strconv.ParseBool(s)
