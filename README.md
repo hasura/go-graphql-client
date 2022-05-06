@@ -22,7 +22,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Custom scalar tag](#custom-scalar-tag)
 		- [Skip GraphQL field](#skip-graphql-field)
 		- [Inline Fragments](#inline-fragments)
-			- [Specify GraphQL type name](#specify-graphql-type-name)
+		- [Specify GraphQL type name](#specify-graphql-type-name)
 		- [Mutations](#mutations)
 			- [Mutations Without Fields](#mutations-without-fields)
 		- [Execute](#execute)
@@ -310,7 +310,7 @@ fmt.Println(q.Hero.Height)
 // 0
 ```
 
-#### Specify GraphQL type name
+### Specify GraphQL type name
 
 The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
 
