@@ -22,8 +22,10 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Custom scalar tag](#custom-scalar-tag)
 		- [Skip GraphQL field](#skip-graphql-field)
 		- [Inline Fragments](#inline-fragments)
+			- [Specify GraphQL type name](#specify-graphql-type-name)
 		- [Mutations](#mutations)
 			- [Mutations Without Fields](#mutations-without-fields)
+		- [Execute](#execute)
 		- [Subscription](#subscription)
 			- [Usage](#usage-1)
 			- [Subscribe](#subscribe)
@@ -308,6 +310,31 @@ fmt.Println(q.Hero.Height)
 // 0
 ```
 
+#### Specify GraphQL type name
+
+The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
+
+```go
+type UserReviewInput struct {
+	Review String
+	UserID String
+}
+
+// type alias
+type user_review_input UserReviewInput
+// or implement GetGraphQLType method
+func (u UserReviewInput) GetGraphQLType() string { return "user_review_input" }
+
+variables := map[string]interface{}{
+  "input": UserReviewInput{}
+}
+
+//query arguments without GetGraphQLType() defined
+//($input: UserReviewInput!)
+//query arguments with GetGraphQLType() defined:w
+//($input: user_review_input!)
+```
+
 ### Mutations
 
 Mutations often require information that you can only find out by performing a query first. Let's suppose you've already done that.
@@ -406,6 +433,28 @@ fmt.Printf("Created a review: %s.\n", m.CreateReview)
 
 // Output:
 // Created a review: .
+```
+
+### Execute
+
+The `Exec` function allows you to executing pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing cli flags or something.
+
+```Go
+// filters would be built dynamically somehow from the command line flags
+filters := []string{
+   `fieldA: {subfieldA: {_eq: "a"}}`,
+   `fieldB: {_eq: "b"}`,
+   ...
+}
+
+query := "query{something(where: {" + strings.Join(filters, ", ") + "}){id}}"
+res := struct {
+	Somethings []Something
+}{}
+
+if err := client.Exec(ctx, query, &res, map[string]any{}); err != nil {
+	panic(err)
+}
 ```
 
 ### Subscription
