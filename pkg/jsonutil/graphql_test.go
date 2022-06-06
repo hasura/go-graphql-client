@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hasura/go-graphql-client"
 	"github.com/hasura/go-graphql-client/pkg/jsonutil"
 )
 
@@ -446,6 +447,39 @@ func TestUnmarshalGraphQL_multipleValuesInOrderedMap(t *testing.T) {
 	}
 	if got, want := err.Error(), "invalid token '{' after top-level value"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
+	}
+}
+
+func TestUnmarshalGraphQL_directives(t *testing.T) {
+	/*
+		query {
+			me {
+				name @include(if: true)
+				height @skip(if: false)
+			}
+		}
+	*/
+	type query struct {
+		Me struct {
+			Name   graphql.String `graphql:"name @include(if: true)"`
+			Height graphql.Float  `graphql:"height @skip(if: false)"`
+		}
+	}
+	var got query
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+		"me": {
+			"name": "Luke Skywalker",
+			"height": 1.72
+		}
+	}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want query
+	want.Me.Name = "Luke Skywalker"
+	want.Me.Height = 1.72
+	if !reflect.DeepEqual(got, want) {
+		t.Error("not equal")
 	}
 }
 
