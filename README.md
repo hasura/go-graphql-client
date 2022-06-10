@@ -25,7 +25,6 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Specify GraphQL type name](#specify-graphql-type-name)
 		- [Mutations](#mutations)
 			- [Mutations Without Fields](#mutations-without-fields)
-		- [Execute](#execute)
 		- [Subscription](#subscription)
 			- [Usage](#usage-1)
 			- [Subscribe](#subscribe)
@@ -35,6 +34,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 			- [Custom HTTP Client](#custom-http-client)
 			- [Custom WebSocket client](#custom-websocket-client)
 		- [Options](#options-1)
+		- [Execute pre-built query](#execute-pre-built-query)
 		- [With operation name (deprecated)](#with-operation-name-deprecated)
 		- [Raw bytes response](#raw-bytes-response)
 		- [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
@@ -435,28 +435,6 @@ fmt.Printf("Created a review: %s.\n", m.CreateReview)
 // Created a review: .
 ```
 
-### Execute
-
-The `Exec` function allows you to executing pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing cli flags or something.
-
-```Go
-// filters would be built dynamically somehow from the command line flags
-filters := []string{
-   `fieldA: {subfieldA: {_eq: "a"}}`,
-   `fieldB: {_eq: "b"}`,
-   ...
-}
-
-query := "query{something(where: {" + strings.Join(filters, ", ") + "}){id}}"
-res := struct {
-	Somethings []Something
-}{}
-
-if err := client.Exec(ctx, query, &res, map[string]any{}); err != nil {
-	panic(err)
-}
-```
-
 ### Subscription
 
 #### Usage
@@ -680,6 +658,40 @@ func (cd cachedDirective) String() string {
 //	...
 // }
 client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"), cachedDirective{})
+```
+
+### Execute pre-built query
+
+The `Exec` function allows you to executing pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing cli flags or something.
+
+```Go
+// filters would be built dynamically somehow from the command line flags
+filters := []string{
+   `fieldA: {subfieldA: {_eq: "a"}}`,
+   `fieldB: {_eq: "b"}`,
+   ...
+}
+
+query := "query{something(where: {" + strings.Join(filters, ", ") + "}){id}}"
+res := struct {
+	Somethings []Something
+}{}
+
+if err := client.Exec(ctx, query, &res, map[string]any{}); err != nil {
+	panic(err)
+}
+
+subscription := "subscription{something(where: {" + strings.Join(filters, ", ") + "}){id}}"
+subscriptionId, err := subscriptionClient.Exec(subscription, nil, func(dataValue *json.RawMessage, errValue error) error {
+	if errValue != nil {
+		// handle error
+		// if returns error, it will failback to `onError` event
+		return nil
+	}
+	data := query{}
+	err := json.Unmarshal(dataValue, &data)
+	// ...
+})
 ```
 
 ### With operation name (deprecated)

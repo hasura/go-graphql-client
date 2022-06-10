@@ -298,7 +298,13 @@ func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variabl
 }
 
 // SubscribeRaw sends start message to server and open a channel to receive data, with raw query
+// Deprecated: use Exec instead
 func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+	return sc.doRaw(query, variables, handler)
+}
+
+// Exec sends start message to server and open a channel to receive data, with raw query
+func (sc *SubscriptionClient) Exec(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
 	return sc.doRaw(query, variables, handler)
 }
 
