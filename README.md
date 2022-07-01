@@ -45,7 +45,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
   
 ## Installation
 
-`go-graphql-client` requires Go version 1.13 or later.
+`go-graphql-client` requires Go version 1.16 or later. For older Go versions, downgrade the library version below v0.7.1.
 
 ```bash
 go get -u github.com/hasura/go-graphql-client
