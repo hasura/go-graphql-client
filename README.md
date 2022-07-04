@@ -28,6 +28,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Subscription](#subscription)
 			- [Usage](#usage-1)
 			- [Subscribe](#subscribe)
+			- [Stop the subscription](#stop-the-subscription)
 			- [Authentication](#authentication-1)
 			- [Options](#options)
 			- [Events](#events)
@@ -490,13 +491,30 @@ subscriptionId, err := client.Subscribe(&query, nil, func(dataValue *json.RawMes
 	fmt.Println(query.Me.Name)
 
 	// Output: Luke Skywalker
+	return nil
+})
+
+if err != nil {
+	// Handle error.
+}
+```
+
+#### Stop the subscription
+
+You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method, or returning a special error to stop it in the callback.
+
+```Go
+subscriptionId, err := client.Subscribe(&query, nil, func(dataValue *json.RawMessage, errValue error) error {
+	// ...
+	// return this error to stop the subscription in the callback
+	return graphql.ErrorSubscriptionStop()
 })
 
 if err != nil {
 	// Handle error.
 }
 
-// you can unsubscribe the subscription while the client is running
+// unsubscribe the subscription while the client is running with the subscription ID
 client.Unsubscribe(subscriptionId)
 ```
 
@@ -537,7 +555,7 @@ client.
 // OnConnected event is triggered when the websocket connected to GraphQL server sucessfully
 client.OnConnected(fn func())
 
-// OnDisconnected event is triggered when the websocket server was stil down after retry timeout
+// OnDisconnected event is triggered when the websocket client was disconnected
 client.OnDisconnected(fn func())
 
 // OnConnected event is triggered when there is any connection error. This is bottom exception handler level

@@ -7,6 +7,6 @@ package main
 
 func main() {
 	go startServer()
-	go startSubscription()
-	startSendHello()
+	go startSendHello()
+	startSubscription()
 }

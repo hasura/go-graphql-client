@@ -46,7 +46,7 @@ func startSubscription() error {
 		} `graphql:"helloSaid"`
 	}
 
-	_, err := client.Subscribe(sub, nil, func(data *json.RawMessage, err error) error {
+	subId, err := client.Subscribe(sub, nil, func(data *json.RawMessage, err error) error {
 
 		if err != nil {
 			log.Println(err)
@@ -64,6 +64,12 @@ func startSubscription() error {
 		panic(err)
 	}
 
+	// automatically unsubscribe after 10 seconds
+	go func() {
+		time.Sleep(10 * time.Second)
+		client.Unsubscribe(subId)
+	}()
+
 	return client.Run()
 }
 
@@ -71,8 +77,9 @@ func startSubscription() error {
 func startSendHello() {
 
 	client := graphql.NewClient(getServerEndpoint(), &http.Client{Transport: http.DefaultTransport})
-
-	for i := 0; i < 120; i++ {
+	// stop until the subscription client is connected
+	time.Sleep(time.Second)
+	for i := 0; i < 10; i++ {
 		/*
 			mutation ($msg: String!) {
 				sayHello(msg: $msg) {
