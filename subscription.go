@@ -51,6 +51,9 @@ const (
 	GQL_INTERNAL OperationMessageType = "internal"
 )
 
+// ErrSubscriptionStopped a special error which forces the subscription stop
+var ErrSubscriptionStopped = errors.New("subscription stopped")
+
 // OperationMessage represents a subscription operation message
 type OperationMessage struct {
 	ID      string               `json:"id,omitempty"`
@@ -504,7 +507,7 @@ func (sc *SubscriptionClient) Run() error {
 			return nil
 		case e := <-sc.errorChan:
 			// stop the subscription if the error has stop message
-			if e.Error() == string(GQL_STOP) {
+			if e == ErrSubscriptionStopped {
 				return nil
 			}
 
@@ -673,9 +676,4 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 type WebsocketOptions struct {
 	// HTTPClient is used for the connection.
 	HTTPClient *http.Client
-}
-
-// ErrorSubscriptionStop creates a special error which forces the subscription to be stopped
-func ErrorSubscriptionStop() error {
-	return errors.New(string(GQL_STOP))
 }

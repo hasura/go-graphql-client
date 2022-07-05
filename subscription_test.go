@@ -357,7 +357,7 @@ func TestSubscriptionLifeCycle2(t *testing.T) {
 			t.Fatalf("subscription message does not match. got: %s, want: %s", sub2.HelloSaid.Message, msg)
 		}
 
-		return ErrorSubscriptionStop()
+		return ErrSubscriptionStopped
 	})
 
 	if err != nil {

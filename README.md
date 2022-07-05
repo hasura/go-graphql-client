@@ -507,7 +507,7 @@ You can programmatically stop the subscription while the client is running by us
 subscriptionId, err := client.Subscribe(&query, nil, func(dataValue *json.RawMessage, errValue error) error {
 	// ...
 	// return this error to stop the subscription in the callback
-	return graphql.ErrorSubscriptionStop()
+	return graphql.ErrSubscriptionStopped
 })
 
 if err != nil {
