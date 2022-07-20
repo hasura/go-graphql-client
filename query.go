@@ -270,7 +270,6 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			}
 		}
 		_, _ = io.WriteString(w, "}")
-		return nil
 	case reflect.Map:
 		return fmt.Errorf("type %v is not supported, use [][2]interface{} instead", t)
 	}
