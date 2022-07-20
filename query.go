@@ -45,7 +45,10 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 
 // ConstructQuery build GraphQL query string from struct and variables
 func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
-	query := query(v)
+	query, err := query(v)
+	if err != nil {
+		return "", err
+	}
 
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
@@ -65,7 +68,10 @@ func ConstructQuery(v interface{}, variables map[string]interface{}, options ...
 
 // ConstructQuery build GraphQL mutation string from struct and variables
 func ConstructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
-	query := query(v)
+	query, err := query(v)
+	if err != nil {
+		return "", err
+	}
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
 		return "", err
@@ -83,7 +89,10 @@ func ConstructMutation(v interface{}, variables map[string]interface{}, options 
 
 // ConstructSubscription build GraphQL subscription string from struct and variables
 func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
-	query := query(v)
+	query, err := query(v)
+	if err != nil {
+		return "", err
+	}
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
 		return "", err
@@ -171,22 +180,29 @@ func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
 // a minified query string from the provided struct v.
 //
 // E.g., struct{Foo Int, BarBaz *Boolean} -> "{foo,barBaz}".
-func query(v interface{}) string {
+func query(v interface{}) (string, error) {
 	var buf bytes.Buffer
-	writeQuery(&buf, reflect.TypeOf(v), reflect.ValueOf(v), false)
-	return buf.String()
+	err := writeQuery(&buf, reflect.TypeOf(v), reflect.ValueOf(v), false)
+	if err != nil {
+		return "", fmt.Errorf("failed to write query: %w", err)
+	}
+	return buf.String(), nil
 }
 
 // writeQuery writes a minified query for t to w.
 // If inline is true, the struct fields of t are inlined into parent struct.
-func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) {
+func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error {
 	switch t.Kind() {
 	case reflect.Ptr:
-		writeQuery(w, t.Elem(), ElemSafe(v), false)
+		err := writeQuery(w, t.Elem(), ElemSafe(v), false)
+		if err != nil {
+			return fmt.Errorf("failed to write query for ptr `%v`: %w", t, err)
+		}
+		return nil
 	case reflect.Struct:
 		// If the type implements json.Unmarshaler, it's a scalar. Don't expand it.
 		if reflect.PtrTo(t).Implements(jsonUnmarshaler) {
-			return
+			return nil
 		}
 		if !inline {
 			io.WriteString(w, "{")
@@ -216,20 +232,23 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) {
 			if isTrue(f.Tag.Get("scalar")) {
 				continue
 			}
-			writeQuery(w, f.Type, FieldSafe(v, i), inlineField)
+			err := writeQuery(w, f.Type, FieldSafe(v, i), inlineField)
+			if err != nil {
+				return fmt.Errorf("failed to write query for struct field `%v`: %w", f.Name, err)
+			}
 		}
 		if !inline {
 			io.WriteString(w, "}")
 		}
+		return nil
 	case reflect.Slice:
 		if t.Elem().Kind() != reflect.Array {
 			writeQuery(w, t.Elem(), IndexSafe(v, 0), false)
-			return
+			return nil
 		}
 		// handle [][2]interface{} like an ordered map
 		if t.Elem().Len() != 2 {
-			err := fmt.Errorf("only arrays of len 2 are supported, got %v", t.Elem())
-			panic(err.Error())
+			return fmt.Errorf("only arrays of len 2 are supported, got %v", t.Elem())
 		}
 		sliceOfPairs := v
 		_, _ = io.WriteString(w, "{")
@@ -238,13 +257,20 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) {
 			// it.Value() returns interface{}, so we need to use reflect.ValueOf
 			// to cast it away
 			key, val := pair.Index(0), reflect.ValueOf(pair.Index(1).Interface())
-			_, _ = io.WriteString(w, key.Interface().(string))
+			keyString, ok := key.Interface().(string)
+			if !ok {
+				return fmt.Errorf("expected pair (string, %v), got (%v, %v)",
+					val.Type(), key.Type(), val.Type())
+			}
+			_, _ = io.WriteString(w, keyString)
 			writeQuery(w, val.Type(), val, false)
 		}
 		_, _ = io.WriteString(w, "}")
+		return nil
 	case reflect.Map:
-		err := fmt.Errorf("type %v is not supported, use [][2]interface{} instead", t)
-		panic(err.Error())
+		return fmt.Errorf("type %v is not supported, use [][2]interface{} instead", t)
+	default:
+		return fmt.Errorf("type %v is not supported", t)
 	}
 }
 
