@@ -198,7 +198,6 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		if err != nil {
 			return fmt.Errorf("failed to write query for ptr `%v`: %w", t, err)
 		}
-		return nil
 	case reflect.Struct:
 		// If the type implements json.Unmarshaler, it's a scalar. Don't expand it.
 		if reflect.PtrTo(t).Implements(jsonUnmarshaler) {
@@ -240,10 +239,12 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		if !inline {
 			io.WriteString(w, "}")
 		}
-		return nil
 	case reflect.Slice:
 		if t.Elem().Kind() != reflect.Array {
-			writeQuery(w, t.Elem(), IndexSafe(v, 0), false)
+			err := writeQuery(w, t.Elem(), IndexSafe(v, 0), false)
+			if err != nil {
+				return fmt.Errorf("failed to write query for slice item `%v`: %w", t, err)
+			}
 			return nil
 		}
 		// handle [][2]interface{} like an ordered map
@@ -263,15 +264,17 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 					val.Type(), key.Type(), val.Type())
 			}
 			_, _ = io.WriteString(w, keyString)
-			writeQuery(w, val.Type(), val, false)
+			err := writeQuery(w, val.Type(), val, false)
+			if err != nil {
+				return fmt.Errorf("failed to write query for pair[1] `%v`: %w", val.Type(), err)
+			}
 		}
 		_, _ = io.WriteString(w, "}")
 		return nil
 	case reflect.Map:
 		return fmt.Errorf("type %v is not supported, use [][2]interface{} instead", t)
-	default:
-		return fmt.Errorf("type %v is not supported", t)
 	}
+	return nil
 }
 
 func IndexSafe(v reflect.Value, i int) reflect.Value {
