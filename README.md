@@ -13,6 +13,8 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 
 **Status:** In active early research and development. The API will change when opportunities for improvement are discovered; it is not yet frozen.
 
+**Note**: Before v0.8.0, `QueryRaw`, `MutateRaw` and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
+
 - [go-graphql-client](#go-graphql-client)
 	- [Installation](#installation)
 	- [Usage](#usage)
@@ -479,7 +481,7 @@ var subscription struct {
 Then call `client.Subscribe`, passing a pointer to it:
 
 ```Go
-subscriptionId, err := client.Subscribe(&query, nil, func(dataValue *json.RawMessage, errValue error) error {
+subscriptionId, err := client.Subscribe(&query, nil, func(dataValue []byte, errValue error) error {
 	if errValue != nil {
 		// handle error
 		// if returns error, it will failback to `onError` event
@@ -504,7 +506,7 @@ if err != nil {
 You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method, or returning a special error to stop it in the callback.
 
 ```Go
-subscriptionId, err := client.Subscribe(&query, nil, func(dataValue *json.RawMessage, errValue error) error {
+subscriptionId, err := client.Subscribe(&query, nil, func(dataValue []byte, errValue error) error {
 	// ...
 	// return this error to stop the subscription in the callback
 	return graphql.ErrSubscriptionStopped
@@ -700,7 +702,7 @@ if err := client.Exec(ctx, query, &res, map[string]any{}); err != nil {
 }
 
 subscription := "subscription{something(where: {" + strings.Join(filters, ", ") + "}){id}}"
-subscriptionId, err := subscriptionClient.Exec(subscription, nil, func(dataValue *json.RawMessage, errValue error) error {
+subscriptionId, err := subscriptionClient.Exec(subscription, nil, func(dataValue []byte, errValue error) error {
 	if errValue != nil {
 		// handle error
 		// if returns error, it will failback to `onError` event
@@ -712,6 +714,22 @@ subscriptionId, err := subscriptionClient.Exec(subscription, nil, func(dataValue
 })
 ```
 
+If you prefer decoding JSON yourself, use `ExecRaw` instead.
+
+```Go
+query := `query{something(where: { foo: { _eq: "bar" }}){id}}`
+var res struct {
+	Somethings []Something `json:"something"`
+}
+
+raw, err := client.ExecRaw(ctx, query, map[string]any{}) 
+if err != nil {
+	panic(err)
+}
+
+err = json.Unmarshal(raw, &res)
+```
+
 ### With operation name (deprecated)
 
 Operation name is still on API decision plan https://github.com/shurcooL/graphql/issues/12. However, in my opinion separate methods are easier choice to avoid breaking changes
@@ -721,7 +739,7 @@ func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, var
 
 func (c *Client) NamedMutate(ctx context.Context, name string, q interface{}, variables map[string]interface{}) error
 
-func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error)
+func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message []byte, err error) error) (string, error)
 ```
 
 ### Raw bytes response
@@ -729,13 +747,13 @@ func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variabl
 In the case we developers want to decode JSON response ourself. Moreover, the default `UnmarshalGraphQL` function isn't ideal with complicated nested interfaces
 
 ```Go
-func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
+func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}) ([]byte, error)
 
-func (c *Client) MutateRaw(ctx context.Context, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
+func (c *Client) MutateRaw(ctx context.Context, q interface{}, variables map[string]interface{}) ([]byte, error)
 
-func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
+func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) ([]byte, error)
 
-func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) (*json.RawMessage, error)
+func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) ([]byte, error)
 ```
 
 ### Multiple mutations with ordered map

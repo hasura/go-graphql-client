@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -46,7 +45,7 @@ func startSubscription() error {
 		} `graphql:"helloSaid"`
 	}
 
-	subId, err := client.Subscribe(sub, nil, func(data *json.RawMessage, err error) error {
+	subId, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
 
 		if err != nil {
 			log.Println(err)
@@ -56,7 +55,7 @@ func startSubscription() error {
 		if data == nil {
 			return nil
 		}
-		log.Println(string(*data))
+		log.Println(string(data))
 		return nil
 	})
 

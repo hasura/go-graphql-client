@@ -80,11 +80,11 @@ type WebsocketConn interface {
 	SetReadLimit(limit int64)
 }
 
-type handlerFunc func(data *json.RawMessage, err error) error
+type handlerFunc func(data []byte, err error) error
 type subscription struct {
 	query     string
 	variables map[string]interface{}
-	handler   func(data *json.RawMessage, err error)
+	handler   func(data []byte, err error)
 	started   Boolean
 }
 
@@ -298,29 +298,29 @@ func (sc *SubscriptionClient) sendConnectionInit() (err error) {
 // Subscribe sends start message to server and open a channel to receive data.
 // The handler callback function will receive raw message data or error. If the call return error, onError event will be triggered
 // The function returns subscription ID and error. You can use subscription ID to unsubscribe the subscription
-func (sc *SubscriptionClient) Subscribe(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+func (sc *SubscriptionClient) Subscribe(v interface{}, variables map[string]interface{}, handler func(message []byte, err error) error, options ...Option) (string, error) {
 	return sc.do(v, variables, handler, options...)
 }
 
 // NamedSubscribe sends start message to server and open a channel to receive data, with operation name
 //
 // Deprecated: this is the shortcut of Subscribe method, with NewOperationName option
-func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variables map[string]interface{}, handler func(message []byte, err error) error, options ...Option) (string, error) {
 	return sc.do(v, variables, handler, append(options, OperationName(name))...)
 }
 
 // SubscribeRaw sends start message to server and open a channel to receive data, with raw query
 // Deprecated: use Exec instead
-func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+func (sc *SubscriptionClient) SubscribeRaw(query string, variables map[string]interface{}, handler func(message []byte, err error) error) (string, error) {
 	return sc.doRaw(query, variables, handler)
 }
 
 // Exec sends start message to server and open a channel to receive data, with raw query
-func (sc *SubscriptionClient) Exec(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+func (sc *SubscriptionClient) Exec(query string, variables map[string]interface{}, handler func(message []byte, err error) error) (string, error) {
 	return sc.doRaw(query, variables, handler)
 }
 
-func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error, options ...Option) (string, error) {
+func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}, handler func(message []byte, err error) error, options ...Option) (string, error) {
 	query, err := ConstructSubscription(v, variables, options...)
 	if err != nil {
 		return "", err
@@ -329,7 +329,7 @@ func (sc *SubscriptionClient) do(v interface{}, variables map[string]interface{}
 	return sc.doRaw(query, variables, handler)
 }
 
-func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface{}, handler func(message *json.RawMessage, err error) error) (string, error) {
+func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface{}, handler func(message []byte, err error) error) (string, error) {
 	id := uuid.New().String()
 
 	sub := subscription{
@@ -387,8 +387,8 @@ func (sc *SubscriptionClient) startSubscription(id string, sub *subscription) er
 	return nil
 }
 
-func (sc *SubscriptionClient) wrapHandler(fn handlerFunc) func(data *json.RawMessage, err error) {
-	return func(data *json.RawMessage, err error) {
+func (sc *SubscriptionClient) wrapHandler(fn handlerFunc) func(data []byte, err error) {
+	return func(data []byte, err error) {
 		if errValue := fn(data, err); errValue != nil {
 			sc.errorChan <- errValue
 		}
@@ -481,7 +481,12 @@ func (sc *SubscriptionClient) Run() error {
 						continue
 					}
 
-					go sub.handler(out.Data, nil)
+					var outData []byte
+					if out.Data != nil && len(*out.Data) > 0 {
+						outData = *out.Data
+					}
+
+					go sub.handler(outData, nil)
 				case GQL_CONNECTION_ERROR:
 					sc.printLog(message, "server", GQL_CONNECTION_ERROR)
 				case GQL_COMPLETE:

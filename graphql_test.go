@@ -315,6 +315,105 @@ func TestClient_Query_ignoreFields(t *testing.T) {
 	}
 }
 
+// Test raw json response from query
+func TestClient_Query_RawResponse(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var q struct {
+		User struct {
+			ID   string `graphql:"id"`
+			Name string `graphql:"name"`
+		}
+	}
+	rawBytes, err := client.QueryRaw(context.Background(), &q, map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = json.Unmarshal(rawBytes, &q)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Errorf("got q.User.Name: %q, want: %q", got, want)
+	}
+}
+
+// Test exec pre-built query
+func TestClient_Exec_Query(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var q struct {
+		User struct {
+			ID   string `graphql:"id"`
+			Name string `graphql:"name"`
+		}
+	}
+
+	err := client.Exec(context.Background(), "{user{id,name}}", &q, map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Errorf("got q.User.Name: %q, want: %q", got, want)
+	}
+}
+
+// Test exec pre-built query, return raw json string
+func TestClient_Exec_QueryRaw(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var q struct {
+		User struct {
+			ID   string `graphql:"id"`
+			Name string `graphql:"name"`
+		}
+	}
+
+	rawBytes, err := client.ExecRaw(context.Background(), "{user{id,name}}", map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = json.Unmarshal(rawBytes, &q)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Errorf("got q.User.Name: %q, want: %q", got, want)
+	}
+}
+
 // localRoundTripper is an http.RoundTripper that executes HTTP transactions
 // by using handler directly, instead of going over an HTTP connection.
 type localRoundTripper struct {

@@ -203,14 +203,14 @@ func TestSubscriptionLifeCycle(t *testing.T) {
 		} `graphql:"helloSaid" json:"helloSaid"`
 	}
 
-	_, err := subscriptionClient.Subscribe(sub, nil, func(data *json.RawMessage, e error) error {
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
 		}
 
-		log.Println("result", string(*data))
-		e = json.Unmarshal(*data, &sub)
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
@@ -302,14 +302,14 @@ func TestSubscriptionLifeCycle2(t *testing.T) {
 		} `graphql:"helloSaid" json:"helloSaid"`
 	}
 
-	subId1, err := subscriptionClient.Subscribe(sub, nil, func(data *json.RawMessage, e error) error {
+	subId1, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
 		}
 
-		log.Println("result", string(*data))
-		e = json.Unmarshal(*data, &sub)
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
@@ -340,14 +340,14 @@ func TestSubscriptionLifeCycle2(t *testing.T) {
 		} `graphql:"helloSaid" json:"helloSaid"`
 	}
 
-	_, err = subscriptionClient.Subscribe(sub2, nil, func(data *json.RawMessage, e error) error {
+	_, err = subscriptionClient.Subscribe(sub2, nil, func(data []byte, e error) error {
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
 		}
 
-		log.Println("result", string(*data))
-		e = json.Unmarshal(*data, &sub2)
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub2)
 		if e != nil {
 			t.Fatalf("got error: %v, want: nil", e)
 			return nil
