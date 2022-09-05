@@ -108,7 +108,7 @@ func ConstructSubscription(v interface{}, variables map[string]interface{}, opti
 
 // queryArguments constructs a minified arguments string for variables.
 //
-// E.g., map[string]interface{}{"a": Int(123), "b": NewBoolean(true)} -> "$a:Int!$b:Boolean".
+// E.g., map[string]interface{}{"a": int(123), "b": true} -> "$a:Int!$b:Boolean!".
 func queryArguments(variables map[string]interface{}) string {
 	// Sort keys in order to produce deterministic output for testing purposes.
 	// TODO: If tests can be made to work with non-deterministic output, then no need to sort.
@@ -159,15 +159,19 @@ func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
 		io.WriteString(w, "[")
 		writeArgumentType(w, t.Elem(), true)
 		io.WriteString(w, "]")
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		io.WriteString(w, "Int")
+	case reflect.Float32, reflect.Float64:
+		io.WriteString(w, "Float")
+	case reflect.Bool:
+		io.WriteString(w, "Boolean")
 	default:
-		// Named type. E.g., "Int".
-		name := t.Name()
-
-		if name == "string" { // HACK: Workaround for https://github.com/shurcooL/githubv4/issues/12.
-			name = "ID"
+		n := t.Name()
+		if n == "string" {
+			n = "String"
 		}
-
-		io.WriteString(w, name)
+		io.WriteString(w, n)
 	}
 
 	if value {
@@ -179,7 +183,7 @@ func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
 // query uses writeQuery to recursively construct
 // a minified query string from the provided struct v.
 //
-// E.g., struct{Foo Int, BarBaz *Boolean} -> "{foo,barBaz}".
+// E.g., struct{Foo Int, BarBaz *bool} -> "{foo,barBaz}".
 func query(v interface{}) (string, error) {
 	var buf bytes.Buffer
 	err := writeQuery(&buf, reflect.TypeOf(v), reflect.ValueOf(v), false)
@@ -201,6 +205,9 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 	case reflect.Struct:
 		// If the type implements json.Unmarshaler, it's a scalar. Don't expand it.
 		if reflect.PtrTo(t).Implements(jsonUnmarshaler) {
+			return nil
+		}
+		if t.AssignableTo(idType) {
 			return nil
 		}
 		if !inline {
@@ -298,7 +305,7 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 }
 
 var jsonUnmarshaler = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-
+var idType = reflect.TypeOf(ID(""))
 var graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
 
 func isTrue(s string) bool {

@@ -159,7 +159,7 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 
 	var q struct {
 		User struct {
-			Name graphql.String
+			Name string
 		}
 	}
 	err := client.Query(context.Background(), &q, nil)
@@ -209,7 +209,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 
 	var q struct {
 		User struct {
-			Name graphql.String
+			Name string
 		}
 	}
 	err := client.Query(context.Background(), &q, nil)

@@ -1,7 +1,7 @@
 go-graphql-client
 =======
 
-[![Build Status](https://travis-ci.org/hasura/go-graphql-client.svg?branch=master)](https://travis-ci.org/hasura/go-graphql-client.svg?branch=master) [![GoDoc](https://godoc.org/github.com/hasura/go-graphql-client?status.svg)](https://pkg.go.dev/github.com/hasura/go-graphql-client)
+[![Unit tests](https://github.com/hasura/go-graphql-client/actions/workflows/test.yml/badge.svg)](https://github.com/hasura/go-graphql-client/actions/workflows/test.yml)
 
 **Preface:** This is a fork of `https://github.com/shurcooL/graphql` with extended features (subscription client, named operation)
 
@@ -99,7 +99,7 @@ You can define this variable:
 ```Go
 var query struct {
 	Me struct {
-		Name graphql.String
+		Name string
 	}
 }
 ```
@@ -136,8 +136,8 @@ You can define this variable:
 ```Go
 var q struct {
 	Human struct {
-		Name   graphql.String
-		Height graphql.Float `graphql:"height(unit: METER)"`
+		Name   string
+		Height float64 `graphql:"height(unit: METER)"`
 	} `graphql:"human(id: \"1000\")"`
 }
 ```
@@ -162,8 +162,8 @@ However, that'll only work if the arguments are constant and known in advance. O
 ```Go
 var q struct {
 	Human struct {
-		Name   graphql.String
-		Height graphql.Float `graphql:"height(unit: $unit)"`
+		Name   string
+		Height float64 `graphql:"height(unit: $unit)"`
 	} `graphql:"human(id: $id)"`
 }
 ```
@@ -264,12 +264,12 @@ You can define this variable:
 ```Go
 var q struct {
 	Hero struct {
-		Name  graphql.String
+		Name  string
 		Droid struct {
-			PrimaryFunction graphql.String
+			PrimaryFunction string
 		} `graphql:"... on Droid"`
 		Human struct {
-			Height graphql.Float
+			Height float64
 		} `graphql:"... on Human"`
 	} `graphql:"hero(episode: \"JEDI\")"`
 }
@@ -280,16 +280,16 @@ Alternatively, you can define the struct types corresponding to inline fragments
 ```Go
 type (
 	DroidFragment struct {
-		PrimaryFunction graphql.String
+		PrimaryFunction string
 	}
 	HumanFragment struct {
-		Height graphql.Float
+		Height float64
 	}
 )
 
 var q struct {
 	Hero struct {
-		Name          graphql.String
+		Name          string
 		DroidFragment `graphql:"... on Droid"`
 		HumanFragment `graphql:"... on Human"`
 	} `graphql:"hero(episode: \"JEDI\")"`
@@ -319,8 +319,8 @@ The GraphQL type is automatically inferred from Go type by reflection. However, 
 
 ```go
 type UserReviewInput struct {
-	Review String
-	UserID String
+	Review string
+	UserID string
 }
 
 // type alias
@@ -365,15 +365,15 @@ You can define:
 ```Go
 var m struct {
 	CreateReview struct {
-		Stars      graphql.Int
-		Commentary graphql.String
+		Stars      int
+		Commentary string
 	} `graphql:"createReview(episode: $ep, review: $review)"`
 }
 variables := map[string]interface{}{
 	"ep": starwars.Episode("JEDI"),
 	"review": starwars.ReviewInput{
-		Stars:      graphql.Int(5),
-		Commentary: graphql.String("This is a great movie!"),
+		Stars:      5,
+		Commentary: "This is a great movie!",
 	},
 }
 ```
@@ -419,8 +419,8 @@ var m struct {
 variables := map[string]interface{}{
 	"ep": starwars.Episode("JEDI"),
 	"review": starwars.ReviewInput{
-		Stars:      graphql.Int(5),
-		Commentary: graphql.String("This is a great movie!"),
+		Stars:      5,
+		Commentary: "This is a great movie!",
 	},
 }
 ```
@@ -473,7 +473,7 @@ You can define this variable:
 ```Go
 var subscription struct {
 	Me struct {
-		Name graphql.String
+		Name string
 	}
 }
 ```
@@ -780,7 +780,7 @@ You can define:
 
 ```Go
 type CreateUser struct {
-	Login graphql.String
+	Login string
 }
 m := [][2]interface{}{
 	{"createUser(login: $login1)", &CreateUser{}},
@@ -788,9 +788,9 @@ m := [][2]interface{}{
 	{"createUser(login: $login3)", &CreateUser{}},
 }
 variables := map[string]interface{}{
-	"login1": graphql.String("grihabor"),
-	"login2": graphql.String("diman"),
-	"login3": graphql.String("indigo"),
+	"login1": "grihabor",
+	"login2": "diman",
+	"login3": "indigo",
 }
 ```
 

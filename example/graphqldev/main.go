@@ -59,15 +59,15 @@ func run() error {
 	var q struct {
 		Hero struct {
 			ID   graphql.ID
-			Name graphql.String
+			Name string
 		}
 		Character struct {
-			Name    graphql.String
+			Name    string
 			Friends []struct {
-				Name     graphql.String
-				Typename graphql.String `graphql:"__typename"`
+				Name     string
+				Typename string `graphql:"__typename"`
 			}
-			AppearsIn []graphql.String
+			AppearsIn []string
 		} `graphql:"character(id: $characterID)"`
 	}
 	variables := map[string]interface{}{

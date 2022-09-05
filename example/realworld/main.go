@@ -36,7 +36,7 @@ func run() error {
 	*/
 	var q struct {
 		Character struct {
-			Name graphql.String
+			Name string
 		} `graphql:"character(id: $characterID)"`
 	}
 	variables := map[string]interface{}{

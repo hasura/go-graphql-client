@@ -40,8 +40,8 @@ func startSubscription() error {
 	*/
 	var sub struct {
 		HelloSaid struct {
-			ID      graphql.String
-			Message graphql.String `graphql:"msg"`
+			ID      graphql.ID
+			Message string `graphql:"msg"`
 		} `graphql:"helloSaid"`
 	}
 
@@ -89,12 +89,12 @@ func startSendHello() {
 		*/
 		var q struct {
 			SayHello struct {
-				ID  graphql.String
-				Msg graphql.String
+				ID  graphql.ID
+				Msg string
 			} `graphql:"sayHello(msg: $msg)"`
 		}
 		variables := map[string]interface{}{
-			"msg": graphql.String(randomID()),
+			"msg": randomID(),
 		}
 		err := client.Mutate(context.Background(), &q, variables, graphql.OperationName("SayHello"))
 		if err != nil {
