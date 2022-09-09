@@ -418,6 +418,10 @@ func (sc *SubscriptionClient) Run() error {
 			case <-sc.context.Done():
 				return
 			default:
+				if sc.conn == nil {
+					return
+				}
+
 				var message OperationMessage
 				if err := sc.conn.ReadJSON(&message); err != nil {
 					// manual EOF check
