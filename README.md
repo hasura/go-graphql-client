@@ -82,7 +82,7 @@ func main() {
 
 ### Simple Query
 
-To make a GraphQL query, you need to define a corresponding Go type.
+To make a GraphQL query, you need to define a corresponding Go type. Variable names must be upper case, see [here](https://github.com/hasura/go-graphql-client/blob/master/README.md#specify-graphql-type-name)
 
 For example, to make the following GraphQL query:
 
