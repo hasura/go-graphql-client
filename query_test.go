@@ -658,6 +658,7 @@ func TestQueryArguments(t *testing.T) {
 	f64Val := float64(99.23)
 	bVal := true
 	sVal := "some string"
+	var nullVal interface{} = nil
 	tests := []struct {
 		in   map[string]interface{}
 		want string
@@ -701,6 +702,10 @@ func TestQueryArguments(t *testing.T) {
 		{
 			in:   map[string]interface{}{"a": sVal, "b": &sVal, "c": String("foo"), "d": NewString("bar")},
 			want: "$a:String!$b:String$c:String!$d:String",
+		},
+		{
+			in:   map[string]interface{}{"a": nullVal},
+			want: "$a:null",
 		},
 		{
 			in: map[string]interface{}{

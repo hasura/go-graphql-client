@@ -135,6 +135,11 @@ func queryArguments(variables map[string]interface{}) string {
 // value indicates whether t is a value (required) type or pointer (optional) type.
 // If value is true, then "!" is written at the end of t.
 func writeArgumentType(w io.Writer, t reflect.Type, value bool) {
+	if t == nil {
+		io.WriteString(w, "null")
+		return
+	}
+
 	if t.Kind() == reflect.Ptr {
 		// Pointer is an optional type, so no "!" at the end of the pointer's underlying type.
 		writeArgumentType(w, t.Elem(), false)
