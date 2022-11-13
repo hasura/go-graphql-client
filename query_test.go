@@ -3,6 +3,7 @@ package graphql
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -757,6 +758,66 @@ func TestQueryArguments(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("test case %d:\n got: %q\nwant: %q", i, got, tc.want)
 		}
+	}
+}
+
+// stringStringer is to support a built-in string type as a fmt.Stringer
+type stringStringer string
+
+func (s stringStringer) String() string { return string(s) }
+
+type supportedType fmt.Stringer
+
+func newCustomTypeHint(data supportedType, hintType string) GraphQLType {
+	return &customTypeHint{
+		data: data,
+		hint: hintType,
+	}
+}
+
+type customTypeHint struct {
+	data supportedType
+	hint string
+}
+
+func (cth *customTypeHint) GetGraphQLType() string {
+	return cth.hint
+}
+
+func (cth *customTypeHint) String() string {
+	return cth.data.String()
+}
+
+func TestDynamicCustomType_GetGraphQLType(t *testing.T) {
+
+	type gqlGetRowsQuery struct {
+		GetRows struct {
+			Data []struct {
+				Id String
+			}
+		} `graphql:"getRows(batchId:$batchId)"`
+	}
+
+	const hintType = "UUID"
+	ct := newCustomTypeHint(stringStringer("test"), hintType)
+	if ct.GetGraphQLType() != hintType {
+		t.Errorf("custom type hint:\n got: %s\nwant: %s", ct.GetGraphQLType(), hintType)
+	}
+
+	var query gqlGetRowsQuery
+	hint := newCustomTypeHint(
+		stringStringer("9e573418-38f4-4a35-b3df-eb36c9bba2cd"),
+		hintType,
+	)
+	queryVars := map[string]interface{}{
+		"batchId": hint,
+	}
+	constructQuery, err := ConstructQuery(&query, queryVars)
+	if err != nil {
+		t.Errorf("construct custom type hint error:\n %s", err)
+	}
+	if !strings.Contains(constructQuery, hintType) {
+		t.Errorf("custom type hint:\n the constructed query doesn't contain %s\n%s", hintType, constructQuery)
 	}
 }
 
