@@ -477,11 +477,11 @@ func (sc *SubscriptionClient) Run() error {
 
 					err = json.Unmarshal(message.Payload, &out)
 					if err != nil {
-						go sub.handler(nil, err)
+						sub.handler(nil, err)
 						continue
 					}
 					if len(out.Errors) > 0 {
-						go sub.handler(nil, out.Errors)
+						sub.handler(nil, out.Errors)
 						continue
 					}
 
@@ -490,7 +490,7 @@ func (sc *SubscriptionClient) Run() error {
 						outData = *out.Data
 					}
 
-					go sub.handler(outData, nil)
+					sub.handler(outData, nil)
 				case GQL_CONNECTION_ERROR:
 					sc.printLog(message, "server", GQL_CONNECTION_ERROR)
 				case GQL_COMPLETE:
