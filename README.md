@@ -488,7 +488,8 @@ subscriptionId, err := client.Subscribe(&query, nil, func(dataValue []byte, errV
 		return nil
 	}
 	data := query{}
-	err := json.Unmarshal(dataValue, &data)
+	// use the github.com/hasura/go-graphql-client/pkg/jsonutil package
+	err := jsonutil.UnmarshalGraphQL(dataValue, &data)
 
 	fmt.Println(query.Me.Name)
 

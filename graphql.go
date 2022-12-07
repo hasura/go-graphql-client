@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hasura/go-graphql-client/internal/jsonutil"
+	"github.com/hasura/go-graphql-client/pkg/jsonutil"
 )
 
 // This function allows you to tweak the HTTP request. It might be useful to set authentication
