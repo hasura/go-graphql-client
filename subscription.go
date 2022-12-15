@@ -188,7 +188,7 @@ func (sc *SubscriptionClient) WithReadLimit(limit int64) *SubscriptionClient {
 	return sc
 }
 
-// OnConnected event is triggered when there is any connection error. This is bottom exception handler level
+// OnError event is triggered when there is any connection error. This is bottom exception handler level
 // If this function is empty, or returns nil, the error is ignored
 // If returns error, the websocket connection will be terminated
 func (sc *SubscriptionClient) OnError(onError func(sc *SubscriptionClient, err error) error) *SubscriptionClient {
