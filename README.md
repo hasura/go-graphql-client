@@ -186,6 +186,24 @@ if err != nil {
 }
 ```
 
+Variables get encoded as normal json. So if you supply a struct for a variable and want to rename fields, you can do this like that:
+```Go
+type Dimensions struct {
+	Width int `json:"ship_width`,
+	Height int `json:"ship_height`
+}
+
+var myDimensions := Dimensions{
+	Width : 10,
+	Height : 6,
+}
+
+variables := map[string]interface{}{
+	"ship_dimensions":  myDimensions,
+}
+```
+which will set `ship_dimensions` to an object with the properties `ship_width` and `ship_height`.
+
 ### Custom scalar tag
 
 Because the generator reflects recursively struct objects, it can't know if the struct is a custom scalar such as JSON. To avoid expansion of the field during query generation, let's add the tag `scalar:"true"` to the custom scalar. If the scalar implements the JSON decoder interface, it will be automatically decoded.
