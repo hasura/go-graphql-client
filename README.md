@@ -193,7 +193,7 @@ type Dimensions struct {
 	Height int `json:"ship_height`
 }
 
-var myDimensions := Dimensions{
+var myDimensions = Dimensions{
 	Width : 10,
 	Height : 6,
 }
