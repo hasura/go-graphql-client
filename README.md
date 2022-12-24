@@ -189,8 +189,8 @@ if err != nil {
 Variables get encoded as normal json. So if you supply a struct for a variable and want to rename fields, you can do this like that:
 ```Go
 type Dimensions struct {
-	Width int `json:"ship_width`,
-	Height int `json:"ship_height`
+	Width int `json:"ship_width"`,
+	Height int `json:"ship_height"`
 }
 
 var myDimensions = Dimensions{
@@ -198,9 +198,18 @@ var myDimensions = Dimensions{
 	Height : 6,
 }
 
+var mutation struct {
+  CreateDimensions struct {
+     ID string `graphql:"id"`
+  } `graphql:"create_dimensions(ship_dimensions: $ship_dimensions)"`
+} 
+
 variables := map[string]interface{}{
 	"ship_dimensions":  myDimensions,
 }
+
+err := client.Mutate(context.TODO(), &mutation, variables)
+
 ```
 which will set `ship_dimensions` to an object with the properties `ship_width` and `ship_height`.
 
