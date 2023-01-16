@@ -33,6 +33,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 			- [Stop the subscription](#stop-the-subscription)
 			- [Authentication](#authentication-1)
 			- [Options](#options)
+			- [Subscription Protocols](#subscription-protocols)
 			- [Events](#events)
 			- [Custom HTTP Client](#custom-http-client)
 			- [Custom WebSocket client](#custom-websocket-client)
@@ -548,8 +549,19 @@ client.
 	// max size of response message
 	WithReadLimit(10*1024*1024).
 	// these operation event logs won't be printed
-	WithoutLogTypes(graphql.GQL_DATA, graphql.GQL_CONNECTION_KEEP_ALIVE)
+	WithoutLogTypes(graphql.GQLData, graphql.GQLConnectionKeepAlive)
+```
 
+#### Subscription Protocols
+
+The subscription client supports 2 protocols:
+- [subscriptions-transport-ws](https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md) (default)
+- [graphql-ws](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md)
+
+The protocol can be switchable by the `WithProtocol` function.
+
+```Go
+client.WithProtocol(graphql.GraphQLWS)
 ```
 
 #### Events

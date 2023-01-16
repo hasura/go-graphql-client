@@ -1,0 +1,32 @@
+version: "3.7"
+
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgrespassword
+
+  hasura:
+    image: hasura/graphql-engine:v2.16.1.cli-migrations-v3
+    depends_on:
+      - "postgres"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./server/migrations:/hasura-migrations
+      - ./server/metadata:/hasura-metadata
+    restart: always
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:postgrespassword@postgres:5432/postgres
+      ## enable the console served by server
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,query-log,webhook-log,websocket-log
+      ## enable debugging mode. It is recommended to disable this in production
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ADMIN_SECRET: hasura
+
+volumes:
+  db_data:

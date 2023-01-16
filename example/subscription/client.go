@@ -22,7 +22,7 @@ func startSubscription() error {
 				"foo": "bar",
 			},
 		}).WithLog(log.Println).
-		WithoutLogTypes(graphql.GQL_DATA, graphql.GQL_CONNECTION_KEEP_ALIVE).
+		WithoutLogTypes(graphql.GQLData, graphql.GQLConnectionKeepAlive).
 		OnError(func(sc *graphql.SubscriptionClient, err error) error {
 			log.Print("err", err)
 			return err
