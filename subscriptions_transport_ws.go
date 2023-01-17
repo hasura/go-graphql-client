@@ -174,7 +174,8 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		// The client is now ready to request subscription operations.
 		ctx.Log(message, "server", GQLConnectionAck)
 		ctx.SetAcknowledge(true)
-		for id, sub := range ctx.GetSubscriptions() {
+		subscriptions := ctx.GetSubscriptions()
+		for id, sub := range subscriptions {
 			if err := stw.Subscribe(ctx, id, sub); err != nil {
 				stw.Unsubscribe(ctx, id)
 				return

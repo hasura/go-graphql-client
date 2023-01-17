@@ -128,8 +128,22 @@ func (sc *SubscriptionContext) Log(message interface{}, source string, opType Op
 	sc.log(message, source)
 }
 
+// GetWebsocketConn get the current websocket connection
+func (sc *SubscriptionContext) GetWebsocketConn() WebsocketConn {
+	return sc.WebsocketConn
+}
+
+// SetWebsocketConn set the current websocket connection
+func (sc *SubscriptionContext) SetWebsocketConn(conn WebsocketConn) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+	sc.WebsocketConn = conn
+}
+
 // GetSubscription get the subscription state by id
 func (sc *SubscriptionContext) GetSubscription(id string) *Subscription {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
 	if sc.subscriptions == nil {
 		return nil
 	}
@@ -139,7 +153,11 @@ func (sc *SubscriptionContext) GetSubscription(id string) *Subscription {
 
 // GetSubscription get all available subscriptions in the context
 func (sc *SubscriptionContext) GetSubscriptions() map[string]*Subscription {
-	return sc.subscriptions
+	newMap := make(map[string]*Subscription)
+	for k, v := range sc.subscriptions {
+		newMap[k] = v
+	}
+	return newMap
 }
 
 // SetSubscription set the input subscription state into the context
@@ -170,9 +188,9 @@ func (sc *SubscriptionContext) SetAcknowledge(value bool) {
 
 // Close closes the context and the inner websocket connection if exists
 func (sc *SubscriptionContext) Close() error {
-	if sc.WebsocketConn != nil {
-		err := sc.WebsocketConn.Close()
-		sc.WebsocketConn = nil
+	if conn := sc.GetWebsocketConn(); conn != nil {
+		err := conn.Close()
+		sc.SetWebsocketConn(nil)
 		if err != nil {
 			return err
 		}
@@ -186,9 +204,9 @@ func (sc *SubscriptionContext) Close() error {
 
 // Send emits a message to the graphql server
 func (sc *SubscriptionContext) Send(message interface{}, opType OperationMessageType) error {
-	if sc.WebsocketConn != nil {
+	if conn := sc.GetWebsocketConn(); conn != nil {
 		sc.Log(message, "client", opType)
-		return sc.WebsocketConn.WriteJSON(message)
+		return conn.WriteJSON(message)
 	}
 	return nil
 }
@@ -375,10 +393,10 @@ func (sc *SubscriptionClient) init() error {
 		var err error
 		var conn WebsocketConn
 		// allow custom websocket client
-		if sc.context.WebsocketConn == nil {
+		if sc.context.GetWebsocketConn() == nil {
 			conn, err = sc.createConn(sc)
 			if err == nil {
-				sc.context.WebsocketConn = conn
+				sc.context.SetWebsocketConn(conn)
 			}
 		}
 
@@ -487,7 +505,7 @@ func (sc *SubscriptionClient) Run() error {
 			case <-sc.context.Done():
 				return
 			default:
-				if sc.context == nil || sc.context.WebsocketConn == nil {
+				if sc.context == nil || sc.context.GetWebsocketConn() == nil {
 					return
 				}
 
@@ -572,10 +590,10 @@ func (sc *SubscriptionClient) Reset() error {
 		}
 	}
 
-	if sc.context.WebsocketConn != nil {
+	if sc.context.GetWebsocketConn() != nil {
 		_ = sc.protocol.Close(sc.context)
 		_ = sc.context.Close()
-		sc.context.WebsocketConn = nil
+		sc.context.SetWebsocketConn(nil)
 	}
 
 	return sc.Run()
@@ -594,7 +612,7 @@ func (sc *SubscriptionClient) Close() (err error) {
 	if sc.context != nil {
 		_ = sc.protocol.Close(sc.context)
 		err = sc.context.Close()
-		sc.context.WebsocketConn = nil
+		sc.context.SetWebsocketConn(nil)
 		if sc.context.onDisconnected != nil {
 			sc.context.onDisconnected()
 		}
