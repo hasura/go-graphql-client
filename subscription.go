@@ -242,18 +242,19 @@ func (s Subscription) GetHandler() func(data []byte, err error) {
 
 // SubscriptionClient is a GraphQL subscription client.
 type SubscriptionClient struct {
-	url              string
-	context          *SubscriptionContext
-	connectionParams map[string]interface{}
-	protocol         SubscriptionProtocol
-	websocketOptions WebsocketOptions
-	timeout          time.Duration
-	isRunning        int64
-	readLimit        int64 // max size of response message. Default 10 MB
-	createConn       func(sc *SubscriptionClient) (WebsocketConn, error)
-	retryTimeout     time.Duration
-	onError          func(sc *SubscriptionClient, err error) error
-	errorChan        chan error
+	url                string
+	context            *SubscriptionContext
+	connectionParams   map[string]interface{}
+	connectionParamsFn func() map[string]interface{}
+	protocol           SubscriptionProtocol
+	websocketOptions   WebsocketOptions
+	timeout            time.Duration
+	isRunning          int64
+	readLimit          int64 // max size of response message. Default 10 MB
+	createConn         func(sc *SubscriptionClient) (WebsocketConn, error)
+	retryTimeout       time.Duration
+	onError            func(sc *SubscriptionClient, err error) error
+	errorChan          chan error
 }
 
 // NewSubscriptionClient constructs new subscription client
@@ -322,6 +323,13 @@ func (sc *SubscriptionClient) WithConnectionParams(params map[string]interface{}
 	return sc
 }
 
+// WithConnectionParamsFn set a function that returns connection params for sending to server through GQL_CONNECTION_INIT event
+// It's suitable for short-lived access tokens that need to be refreshed frequently
+func (sc *SubscriptionClient) WithConnectionParamsFn(fn func() map[string]interface{}) *SubscriptionClient {
+	sc.connectionParamsFn = fn
+	return sc
+}
+
 // WithTimeout updates write timeout of websocket client
 func (sc *SubscriptionClient) WithTimeout(timeout time.Duration) *SubscriptionClient {
 	sc.timeout = timeout
@@ -329,6 +337,7 @@ func (sc *SubscriptionClient) WithTimeout(timeout time.Duration) *SubscriptionCl
 }
 
 // WithRetryTimeout updates reconnecting timeout. When the websocket server was stopped, the client will retry connecting every second until timeout
+// The zero value means unlimited timeout
 func (sc *SubscriptionClient) WithRetryTimeout(timeout time.Duration) *SubscriptionClient {
 	sc.retryTimeout = timeout
 	return sc
@@ -403,14 +412,18 @@ func (sc *SubscriptionClient) init() error {
 		if err == nil {
 			sc.context.SetReadLimit(sc.readLimit)
 			// send connection init event to the server
-			err = sc.protocol.ConnectionInit(sc.context, sc.connectionParams)
+			connectionParams := sc.connectionParams
+			if sc.connectionParamsFn != nil {
+				connectionParams = sc.connectionParamsFn()
+			}
+			err = sc.protocol.ConnectionInit(sc.context, connectionParams)
 		}
 
 		if err == nil {
 			return nil
 		}
 
-		if now.Add(sc.retryTimeout).Before(time.Now()) {
+		if sc.retryTimeout > 0 && now.Add(sc.retryTimeout).Before(time.Now()) {
 			if sc.context.onDisconnected != nil {
 				sc.context.onDisconnected()
 			}

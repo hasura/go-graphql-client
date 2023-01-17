@@ -533,9 +533,17 @@ client := graphql.NewSubscriptionClient("wss://example.com/graphql").
 		"headers": map[string]string{
 				"authentication": "...",
 		},
+	}).
+	// or lazy parameters with function 
+  WithConnectionParamsFn(func () map[string]interface{} {
+		return map[string]interface{} {
+			"headers": map[string]string{
+  				"authentication": "...",
+  		},
+		}
 	})
-
 ```
+
 
 #### Options
 
