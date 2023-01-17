@@ -1,4 +1,4 @@
-# go-graphql-client example with Hasura graphql server
+# Examples with Hasura graphql server
 
 ## How to run
 
@@ -16,12 +16,12 @@ Open the console at `http://localhost:8080` with admin secret `hasura`.
 
 #### Subscription with subscriptions-transport-ws protocol
 
-```go
+```sh
 go run ./client/subscriptions-transport-ws
 ```
 
 #### Subscription with graphql-ws protocol
 
-```go
+```sh
 go run ./client/graphql-ws
 ```

@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	graphql "github.com/hasura/go-graphql-client"
@@ -32,7 +33,10 @@ func startSubscription() error {
 			},
 		}).WithLog(log.Println).
 		OnError(func(sc *graphql.SubscriptionClient, err error) error {
-			panic(err)
+			if strings.Contains(err.Error(), "invalid x-hasura-admin-secret/x-hasura-access-key") {
+				return err
+			}
+			return nil
 		})
 
 	defer client.Close()
@@ -52,7 +56,7 @@ func startSubscription() error {
 		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
 	}
 
-	subId, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
+	_, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
 
 		if err != nil {
 			log.Println(err)
@@ -71,10 +75,10 @@ func startSubscription() error {
 	}
 
 	// automatically unsubscribe after 10 seconds
-	go func() {
-		time.Sleep(10 * time.Second)
-		client.Unsubscribe(subId)
-	}()
+	// go func() {
+	// 	time.Sleep(10 * time.Second)
+	// 	client.Unsubscribe(subId)
+	// }()
 
 	return client.Run()
 }

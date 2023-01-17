@@ -43,7 +43,14 @@ func (gws *graphqlWS) ConnectionInit(ctx *SubscriptionContext, connectionParams 
 }
 
 // Subscribe requests an graphql operation specified in the payload message
-func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, id string, payload []byte) error {
+func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, id string, sub *Subscription) error {
+	if sub.GetStarted() {
+		return nil
+	}
+	payload, err := json.Marshal(sub.GetPayload())
+	if err != nil {
+		return err
+	}
 	// send start message to the server
 	msg := OperationMessage{
 		ID:      id,
@@ -51,7 +58,12 @@ func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, id string, payload []b
 		Payload: payload,
 	}
 
-	return ctx.Send(msg, GQLSubscribe)
+	if err := ctx.Send(msg, GQLSubscribe); err != nil {
+		return err
+	}
+
+	sub.SetStarted(true)
+	return nil
 }
 
 // Unsubscribe sends stop message to server and close subscription channel
@@ -135,7 +147,16 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription *Subscrip
 			ctx.Log(err, "client", GQLInternal)
 		}
 	case GQLConnectionAck:
+		// Expected response to the ConnectionInit message from the client acknowledging a successful connection with the server.
+		// The client is now ready to request subscription operations.
 		ctx.Log(message, "server", GQLConnectionAck)
+		ctx.SetAcknowledge(true)
+		for id, sub := range ctx.GetSubscriptions() {
+			if err := gws.Subscribe(ctx, id, sub); err != nil {
+				gws.Unsubscribe(ctx, id)
+				return
+			}
+		}
 		if ctx.OnConnected != nil {
 			ctx.OnConnected()
 		}

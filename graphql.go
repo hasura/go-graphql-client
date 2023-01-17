@@ -115,10 +115,7 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 
 // Request the common method that send graphql request
 func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options ...Option) ([]byte, *http.Response, io.Reader, Errors) {
-	in := struct {
-		Query     string                 `json:"query"`
-		Variables map[string]interface{} `json:"variables,omitempty"`
-	}{
+	in := GraphQLRequestPayload{
 		Query:     query,
 		Variables: variables,
 	}

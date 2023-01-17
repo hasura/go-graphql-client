@@ -10,7 +10,7 @@ import (
 
 const (
 	// The server may responses with this message to the GQL_CONNECTION_INIT from client, indicates the server rejected the connection.
-	GQLConnectionError OperationMessageType = "conn_err"
+	GQLConnectionError OperationMessageType = "connection_error"
 	// Client sends this message to execute GraphQL operation
 	GQLStart OperationMessageType = "start"
 	// Client sends this message in order to stop a running GraphQL operation execution (for example: unsubscribe)
@@ -70,7 +70,14 @@ func (stw *subscriptionsTransportWS) ConnectionInit(ctx *SubscriptionContext, co
 }
 
 // Subscribe requests an graphql operation specified in the payload message
-func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id string, payload []byte) error {
+func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id string, sub *Subscription) error {
+	if sub.GetStarted() {
+		return nil
+	}
+	payload, err := json.Marshal(sub.GetPayload())
+	if err != nil {
+		return err
+	}
 	// send start message to the server
 	msg := OperationMessage{
 		ID:      id,
@@ -78,7 +85,12 @@ func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id stri
 		Payload: payload,
 	}
 
-	return ctx.Send(msg, GQLStart)
+	if err := ctx.Send(msg, GQLStart); err != nil {
+		return err
+	}
+
+	sub.SetStarted(true)
+	return nil
 }
 
 // Unsubscribe sends stop message to server and close subscription channel
@@ -147,15 +159,27 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		}
 
 		subscription.handler(outData, nil)
-	case GQLConnectionError:
+	case GQLConnectionError, "conn_err":
 		ctx.Log(message, "server", GQLConnectionError)
+		_ = stw.Close(ctx)
+		_ = ctx.Close()
+		ctx.cancel()
 	case GQLComplete:
 		ctx.Log(message, "server", GQLComplete)
 		_ = stw.Unsubscribe(ctx, message.ID)
 	case GQLConnectionKeepAlive:
 		ctx.Log(message, "server", GQLConnectionKeepAlive)
 	case GQLConnectionAck:
+		// Expected response to the ConnectionInit message from the client acknowledging a successful connection with the server.
+		// The client is now ready to request subscription operations.
 		ctx.Log(message, "server", GQLConnectionAck)
+		ctx.SetAcknowledge(true)
+		for id, sub := range ctx.GetSubscriptions() {
+			if err := stw.Subscribe(ctx, id, sub); err != nil {
+				stw.Unsubscribe(ctx, id)
+				return
+			}
+		}
 		if ctx.OnConnected != nil {
 			ctx.OnConnected()
 		}
