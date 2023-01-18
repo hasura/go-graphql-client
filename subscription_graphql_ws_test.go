@@ -4,10 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"testing"
 	"time"
+)
+
+const (
+	hasuraTestHost        = "http://localhost:8080"
+	hasuraTestAdminSecret = "hasura"
 )
 
 type headerRoundTripper struct {
@@ -23,11 +30,10 @@ func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 type user_insert_input map[string]interface{}
 
 func graphqlWS_setupClients() (*Client, *SubscriptionClient) {
-	endpoint := "http://localhost:8080/v1/graphql"
-	adminSecret := "hasura"
+	endpoint := fmt.Sprintf("%s/v1/graphql", hasuraTestHost)
 	client := NewClient(endpoint, &http.Client{Transport: headerRoundTripper{
 		setHeaders: func(req *http.Request) {
-			req.Header.Set("x-hasura-admin-secret", adminSecret)
+			req.Header.Set("x-hasura-admin-secret", hasuraTestAdminSecret)
 		},
 		rt: http.DefaultTransport,
 	}})
@@ -36,11 +42,41 @@ func graphqlWS_setupClients() (*Client, *SubscriptionClient) {
 		WithProtocol(GraphQLWS).
 		WithConnectionParams(map[string]interface{}{
 			"headers": map[string]string{
-				"x-hasura-admin-secret": adminSecret,
+				"x-hasura-admin-secret": hasuraTestAdminSecret,
 			},
 		}).WithLog(log.Println)
 
 	return client, subscriptionClient
+}
+
+func waitService(endpoint string, timeoutSecs int) error {
+	var err error
+	var res *http.Response
+	for i := 0; i < timeoutSecs; i++ {
+		res, err = http.Get(endpoint)
+		if err == nil && res.StatusCode == 200 {
+			return nil
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if res != nil {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf(res.Status)
+		}
+		return fmt.Errorf(string(body))
+	}
+	return errors.New("unknown error")
+}
+
+func waitHasuraService(timeoutSecs int) error {
+	return waitService(fmt.Sprintf("%s/healthz", hasuraTestHost), timeoutSecs)
 }
 
 func TestGraphqlWS_Subscription(t *testing.T) {
@@ -102,7 +138,9 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	defer subscriptionClient.Close()
 
 	// wait until the subscription client connects to the server
-	time.Sleep(2 * time.Second)
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
 
 	// call a mutation request to send message to the subscription
 	/*
