@@ -46,11 +46,6 @@ func graphqlWS_setupClients() (*Client, *SubscriptionClient) {
 			},
 		}).WithLog(log.Println)
 
-	// wait until the subscription client connects to the server
-	if err := waitHasuraService(60); err != nil {
-		log.Panicf("failed to start hasura service: %s", err)
-	}
-
 	return client, subscriptionClient
 }
 
@@ -141,6 +136,11 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	}()
 
 	defer subscriptionClient.Close()
+
+	// wait until the subscription client connects to the server
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
 
 	// call a mutation request to send message to the subscription
 	/*
