@@ -50,7 +50,7 @@ func startSubscription() error {
 		}
 	*/
 	var sub struct {
-		Users struct {
+		Users []struct {
 			ID   int    `graphql:"id"`
 			Name string `graphql:"name"`
 		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
