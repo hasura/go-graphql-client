@@ -1,6 +1,11 @@
 name: Unit tests
 
-on: ["push"]
+on:
+  push:
+    paths:
+      - "**.go"
+      - ".github/workflows/*.yml"
+      - "example/hasura/docker-compose.yaml"
 
 jobs:
   test-go:

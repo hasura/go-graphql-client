@@ -37,7 +37,7 @@ type HelloSaidEvent {
 `
 
 func subscription_setupClients() (*Client, *SubscriptionClient) {
-	endpoint := "http://localhost:8080/graphql"
+	endpoint := "http://localhost:8081/graphql"
 
 	client := NewClient(endpoint, &http.Client{Transport: http.DefaultTransport})
 
@@ -63,7 +63,7 @@ func subscription_setupServer() *http.Server {
 	mux := http.NewServeMux()
 	graphQLHandler := graphqlws.NewHandlerFunc(s, &relay.Handler{Schema: s})
 	mux.HandleFunc("/graphql", graphQLHandler)
-	server := &http.Server{Addr: ":8080", Handler: mux}
+	server := &http.Server{Addr: ":8081", Handler: mux}
 
 	return server
 }
