@@ -14,6 +14,12 @@ import (
 	"github.com/hasura/go-graphql-client/pkg/jsonutil"
 )
 
+// Doer interface has the method required to use a type as custom http client.
+// The net/*http.Client type satisfies this interface.
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 // This function allows you to tweak the HTTP request. It might be useful to set authentication
 // headers  amongst other things
 type RequestModifier func(*http.Request)
@@ -21,14 +27,14 @@ type RequestModifier func(*http.Request)
 // Client is a GraphQL client.
 type Client struct {
 	url             string // GraphQL server URL.
-	httpClient      *http.Client
+	httpClient      Doer
 	requestModifier RequestModifier
 	debug           bool
 }
 
 // NewClient creates a GraphQL client targeting the specified GraphQL server URL.
 // If httpClient is nil, then http.DefaultClient is used.
-func NewClient(url string, httpClient *http.Client) *Client {
+func NewClient(url string, httpClient Doer) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
