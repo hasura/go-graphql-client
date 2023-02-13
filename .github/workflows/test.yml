@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "**.go"
+      - "go.mod"
+      - "go.sum"
       - ".github/workflows/*.yml"
       - "example/hasura/docker-compose.yaml"
 
