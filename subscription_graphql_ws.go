@@ -90,7 +90,7 @@ func (gws *graphqlWS) Unsubscribe(ctx *SubscriptionContext, id string) error {
 
 	err := ctx.Send(msg, GQLComplete)
 	// close the client if there is no running subscription
-	if len(ctx.GetSubscriptions()) == 0 {
+	if ctx.GetSubscriptionsLength() == 0 {
 		ctx.Log("no running subscription. exiting...", "client", GQLInternal)
 		return ctx.Close()
 	}

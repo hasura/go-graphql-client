@@ -167,8 +167,17 @@ func (sc *SubscriptionContext) GetSubscription(id string) *Subscription {
 	return &sub
 }
 
+// GetSubscriptionsLength returns the length of subscriptions
+func (sc *SubscriptionContext) GetSubscriptionsLength() int {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+	return len(sc.subscriptions)
+}
+
 // GetSubscription get all available subscriptions in the context
 func (sc *SubscriptionContext) GetSubscriptions() map[string]Subscription {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
 	newMap := make(map[string]Subscription)
 	for k, v := range sc.subscriptions {
 		newMap[k] = v
@@ -180,12 +189,12 @@ func (sc *SubscriptionContext) GetSubscriptions() map[string]Subscription {
 // if subscription is nil, removes the subscription from the map
 func (sc *SubscriptionContext) SetSubscription(id string, sub *Subscription) {
 	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
 	if sub == nil {
 		delete(sc.subscriptions, id)
 	} else {
 		sc.subscriptions[id] = *sub
 	}
-	sc.mutex.Unlock()
 }
 
 // GetAcknowledge get the acknowledge status
@@ -546,7 +555,7 @@ func (sc *SubscriptionClient) Run() error {
 				}
 
 				var message OperationMessage
-				if err := sc.context.ReadJSON(&message); err != nil {
+				if err := sc.context.GetWebsocketConn().ReadJSON(&message); err != nil {
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") {
 						if err = sc.Run(); err != nil {

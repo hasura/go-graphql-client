@@ -118,7 +118,7 @@ func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, id st
 	err := ctx.Send(msg, GQLStop)
 
 	// close the client if there is no running subscription
-	if len(ctx.GetSubscriptions()) == 0 {
+	if ctx.GetSubscriptionsLength() == 0 {
 		ctx.Log("no running subscription. exiting...", "client", GQLInternal)
 		return ctx.Close()
 	}
