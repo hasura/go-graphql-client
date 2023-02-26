@@ -505,8 +505,12 @@ func (sc *SubscriptionClient) Unsubscribe(id string) error {
 	return sc.protocol.Unsubscribe(sc.context, id)
 }
 
-// Run start websocket client and subscriptions. If this function is run with goroutine, it can be stopped after closed
+// Run start the WebSocket client and subscriptions.
+// If the client is running, recalling this function will restart all registered subscriptions
+// If this function is run with goroutine, it can be stopped after closed
 func (sc *SubscriptionClient) Run() error {
+
+	sc.reset()
 	if err := sc.init(); err != nil {
 		return fmt.Errorf("retry timeout. exiting...")
 	}
@@ -526,7 +530,7 @@ func (sc *SubscriptionClient) Run() error {
 				if err := sc.context.ReadJSON(&message); err != nil {
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") {
-						if err = sc.Reset(); err != nil {
+						if err = sc.Run(); err != nil {
 							sc.errorChan <- err
 							return
 						}
@@ -543,7 +547,7 @@ func (sc *SubscriptionClient) Run() error {
 
 					if closeStatus != -1 && closeStatus < 3000 && closeStatus > 4999 {
 						sc.context.Log(fmt.Sprintf("%s. Retry connecting...", err), "client", GQLInternal)
-						if err = sc.Reset(); err != nil {
+						if err = sc.Run(); err != nil {
 							sc.errorChan <- err
 							return
 						}
@@ -587,11 +591,11 @@ func (sc *SubscriptionClient) Run() error {
 		return nil
 	}
 
-	return sc.Reset()
+	return sc.Run()
 }
 
-// Reset restart websocket connection and subscriptions
-func (sc *SubscriptionClient) Reset() error {
+// close the running websocket connection and reset all subscription states
+func (sc *SubscriptionClient) reset() {
 	sc.context.SetAcknowledge(false)
 	isRunning := atomic.LoadInt64(&sc.isRunning) == 0
 
@@ -608,8 +612,6 @@ func (sc *SubscriptionClient) Reset() error {
 		_ = sc.context.Close()
 		sc.context.SetWebsocketConn(nil)
 	}
-
-	return sc.Run()
 }
 
 // Close closes all subscription channel and websocket as well
