@@ -70,7 +70,7 @@ func (stw *subscriptionsTransportWS) ConnectionInit(ctx *SubscriptionContext, co
 }
 
 // Subscribe requests an graphql operation specified in the payload message
-func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id string, sub *Subscription) error {
+func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id string, sub Subscription) error {
 	if sub.GetStarted() {
 		return nil
 	}
@@ -90,13 +90,15 @@ func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id stri
 	}
 
 	sub.SetStarted(true)
+	ctx.SetSubscription(id, &sub)
+
 	return nil
 }
 
 // Unsubscribe sends stop message to server and close subscription channel
 // The input parameter is subscription ID that is returned from Subscribe function
 func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, id string) error {
-	if ctx == nil || ctx.WebsocketConn == nil {
+	if ctx == nil || ctx.GetWebsocketConn() == nil {
 		return nil
 	}
 	sub := ctx.GetSubscription(id)
@@ -114,9 +116,6 @@ func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, id st
 	}
 
 	err := ctx.Send(msg, GQLStop)
-	if err != nil {
-		return err
-	}
 
 	// close the client if there is no running subscription
 	if len(ctx.GetSubscriptions()) == 0 {
@@ -124,20 +123,17 @@ func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, id st
 		return ctx.Close()
 	}
 
-	return nil
+	return err
 }
 
 // OnMessage listens ongoing messages from server
-func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscription *Subscription, message OperationMessage) {
+func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) {
 
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", GQLError)
 	case GQLData:
 		ctx.Log(message, "server", GQLData)
-		if subscription == nil {
-			return
-		}
 		var out struct {
 			Data   *json.RawMessage
 			Errors Errors
@@ -196,7 +192,7 @@ func (stw *subscriptionsTransportWS) Close(ctx *SubscriptionContext) error {
 		Type: GQLConnectionTerminate,
 	}
 
-	if ctx.WebsocketConn != nil {
+	if ctx.GetWebsocketConn() != nil {
 		return ctx.Send(msg, GQLConnectionTerminate)
 	}
 

@@ -321,7 +321,7 @@ type Error struct {
 
 // Error implements error interface.
 func (e Error) Error() string {
-	return fmt.Sprintf("Message: %s, Locations: %+v", e.Message, e.Locations)
+	return fmt.Sprintf("Message: %s, Locations: %+v, Extensions: %+v", e.Message, e.Locations, e.Extensions)
 }
 
 // Error implements error interface.

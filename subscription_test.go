@@ -401,3 +401,157 @@ func TestSubscriptionLifeCycle2(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 }
+
+func TestSubscription_ResetClient(t *testing.T) {
+
+	stop := make(chan bool)
+	server := subscription_setupServer()
+	client, subscriptionClient := subscription_setupClients()
+	msg := randomID()
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer server.Shutdown(ctx)
+	defer cancel()
+
+	subscriptionClient.
+		OnError(func(sc *SubscriptionClient, err error) error {
+			t.Fatalf("got error: %v, want: nil", err)
+			return err
+		}).
+		OnDisconnected(func() {
+			log.Println("disconnected")
+		})
+	/*
+		subscription {
+			helloSaid {
+				id
+				msg
+			}
+		}
+	*/
+	var sub struct {
+		HelloSaid struct {
+			ID      String
+			Message String `graphql:"msg" json:"msg"`
+		} `graphql:"helloSaid" json:"helloSaid"`
+	}
+
+	subId1, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if sub.HelloSaid.Message != String(msg) {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	/*
+		subscription {
+			helloSaid {
+				id
+				msg
+			}
+		}
+	*/
+	var sub2 struct {
+		HelloSaid struct {
+			Message String `graphql:"msg" json:"msg"`
+		} `graphql:"helloSaid" json:"helloSaid"`
+	}
+
+	subId2, err := subscriptionClient.Subscribe(sub2, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub2)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if sub2.HelloSaid.Message != String(msg) {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub2.HelloSaid.Message, msg)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	go func() {
+		// wait until the subscription client connects to the server
+		time.Sleep(2 * time.Second)
+
+		// call a mutation request to send message to the subscription
+		/*
+			mutation ($msg: String!) {
+				sayHello(msg: $msg) {
+					id
+					msg
+				}
+			}
+		*/
+		var q struct {
+			SayHello struct {
+				ID  String
+				Msg String
+			} `graphql:"sayHello(msg: $msg)"`
+		}
+		variables := map[string]interface{}{
+			"msg": String(msg),
+		}
+		err = client.Mutate(context.Background(), &q, variables, OperationName("SayHello"))
+		if err != nil {
+			(*t).Fatalf("got error: %v, want: nil", err)
+		}
+
+		time.Sleep(2 * time.Second)
+
+		// reset the subscription
+		log.Printf("resetting the subscription client...")
+		if err := subscriptionClient.Run(); err != nil {
+			(*t).Fatalf("failed to reset the subscription client. got error: %v, want: nil", err)
+		}
+		log.Printf("the second run was stopped")
+		stop <- true
+	}()
+
+	go func() {
+		time.Sleep(6 * time.Second)
+		subscriptionClient.Unsubscribe(subId1)
+		subscriptionClient.Unsubscribe(subId2)
+	}()
+
+	defer subscriptionClient.Close()
+
+	if err := subscriptionClient.Run(); err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	<-stop
+}
