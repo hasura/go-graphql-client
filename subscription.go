@@ -657,7 +657,7 @@ func (sc *SubscriptionClient) Close() (err error) {
 	unsubscribeErrors := make(map[string]error)
 
 	for id := range sc.context.GetSubscriptions() {
-		if err := sc.protocol.Unsubscribe(sc.context, id); err != nil {
+		if err := sc.protocol.Unsubscribe(sc.context, id); err != nil && !isClosedSubscriptionError(err) {
 			unsubscribeErrors[id] = err
 		}
 	}
@@ -703,9 +703,20 @@ func connectionInit(conn *SubscriptionContext, connectionParams map[string]inter
 	return conn.Send(msg, GQLConnectionInit)
 }
 
+// accept closed websocket errors due to data races
 func isClosedSubscriptionError(err error) bool {
+
+	expectedErrorMessages := []string{
+		"context canceled",
+		"received header with unexpected rsv bits",
+	}
 	errMsg := err.Error()
-	return strings.Contains(errMsg, "context canceled")
+	for _, msg := range expectedErrorMessages {
+		if strings.Contains(errMsg, msg) {
+			return true
+		}
+	}
+	return false
 }
 
 // default websocket handler implementation using https://github.com/nhooyr/websocket

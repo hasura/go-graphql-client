@@ -173,7 +173,7 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		subscriptions := ctx.GetSubscriptions()
 		for id, sub := range subscriptions {
 			if err := stw.Subscribe(ctx, id, sub); err != nil {
-				stw.Unsubscribe(ctx, id)
+				_ = stw.Unsubscribe(ctx, id)
 				return
 			}
 		}
