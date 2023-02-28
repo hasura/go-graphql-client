@@ -558,5 +558,4 @@ func TestSubscription_ResetClient(t *testing.T) {
 	}
 
 	<-stop
-	panic(err)
 }
