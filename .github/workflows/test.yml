@@ -38,7 +38,8 @@ jobs:
           cd ./example/hasura
           docker-compose up -d
       - name: Wait until hasura service online
-        run: >-
+        shell: bash
+        run: |
           printf "waiting for hasura service:\t "
           for i in {1..120};
           do
