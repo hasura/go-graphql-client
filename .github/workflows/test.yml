@@ -43,7 +43,7 @@ jobs:
           printf "waiting for hasura service:\t "
           for i in {1..120};
           do
-            local code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' http://localhost:8080)"
+            code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' http://localhost:8080/heathz)"
             if [[ $code != "200" ]]; then
               printf "."
               sleep 1
