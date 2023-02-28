@@ -553,15 +553,19 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	sc.setClientStatus(scStatusRunning)
-	go func() {
-		conn := sc.context.GetWebsocketConn()
-		if sc.context == nil || conn == nil {
-			return
-		}
+	if sc.context == nil {
+		return fmt.Errorf("the subscription context is nil")
+	}
+	conn := sc.context.GetWebsocketConn()
+	if conn == nil {
+		return fmt.Errorf("the websocket connection hasn't been created")
+	}
+	ctx := sc.context.GetContext()
 
+	go func() {
 		for sc.getClientStatus() == scStatusRunning {
 			select {
-			case <-sc.context.GetContext().Done():
+			case <-ctx.Done():
 				return
 			default:
 				var message OperationMessage
@@ -613,7 +617,10 @@ func (sc *SubscriptionClient) Run() error {
 
 	for sc.getClientStatus() == scStatusRunning {
 		select {
-		case <-sc.context.GetContext().Done():
+		case <-ctx.Done():
+			if sc.context.GetSubscriptionsLength() == 0 {
+				sc.setClientStatus(scStatusClosing)
+			}
 			break
 		case e := <-sc.errorChan:
 			// stop the subscription if the error has stop message
@@ -651,13 +658,10 @@ func (sc *SubscriptionClient) reset() {
 			sc.context.SetSubscription(id, &sub)
 		}
 	}
+	sc.setClientStatus(scStatusClosing)
 
-	if sc.context.GetWebsocketConn() != nil {
-		_ = sc.protocol.Close(sc.context)
-		sc.context.SetWebsocketConn(nil)
-	}
+	_ = sc.protocol.Close(sc.context)
 	_ = sc.context.Close()
-	sc.setClientStatus(scStatusInitializing)
 }
 
 // Close closes all subscription channel and websocket as well
@@ -681,7 +685,6 @@ func (sc *SubscriptionClient) Close() (err error) {
 	protocolCloseError := sc.protocol.Close(sc.context)
 	closeError := sc.context.Close()
 
-	sc.context.SetWebsocketConn(nil)
 	if sc.context.onDisconnected != nil {
 		sc.context.onDisconnected()
 	}

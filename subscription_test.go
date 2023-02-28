@@ -546,7 +546,7 @@ func TestSubscription_ResetClient(t *testing.T) {
 	}()
 
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(8 * time.Second)
 		subscriptionClient.Unsubscribe(subId1)
 		subscriptionClient.Unsubscribe(subId2)
 	}()

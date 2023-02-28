@@ -191,9 +191,5 @@ func (stw *subscriptionsTransportWS) Close(ctx *SubscriptionContext) error {
 		Type: GQLConnectionTerminate,
 	}
 
-	if ctx.GetWebsocketConn() != nil {
-		return ctx.Send(msg, GQLConnectionTerminate)
-	}
-
-	return nil
+	return ctx.Send(msg, GQLConnectionTerminate)
 }
