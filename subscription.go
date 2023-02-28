@@ -21,6 +21,11 @@ import (
 type SubscriptionProtocolType String
 
 const (
+	// internal state machine status
+	scStatusInitializing int32 = 0
+	scStatusRunning      int32 = 1
+	scStatusClosing      int32 = 2
+
 	SubscriptionsTransportWS SubscriptionProtocolType = "subscriptions-transport-ws"
 	GraphQLWS                SubscriptionProtocolType = "graphql-ws"
 
@@ -136,10 +141,22 @@ func (sc *SubscriptionContext) GetContext() context.Context {
 }
 
 // GetContext set the inner context
-func (sc *SubscriptionContext) SetContext(ctx context.Context) {
+func (sc *SubscriptionContext) NewContext() {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
 	sc.Context = ctx
+	sc.cancel = cancel
+}
+
+// SetCancel set the cancel function of the inner context
+func (sc *SubscriptionContext) Cancel() {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+	if sc.cancel != nil {
+		sc.cancel()
+		sc.cancel = nil
+	}
 }
 
 // GetWebsocketConn get the current websocket connection
@@ -218,9 +235,7 @@ func (sc *SubscriptionContext) Close() error {
 		err = conn.Close()
 		sc.SetWebsocketConn(nil)
 	}
-	if sc.cancel != nil {
-		sc.cancel()
-	}
+	sc.Cancel()
 
 	return err
 }
@@ -272,7 +287,7 @@ type SubscriptionClient struct {
 	protocol           SubscriptionProtocol
 	websocketOptions   WebsocketOptions
 	timeout            time.Duration
-	isRunning          int32
+	clientStatus       int32
 	readLimit          int64 // max size of response message. Default 10 MB
 	createConn         func(sc *SubscriptionClient) (WebsocketConn, error)
 	retryTimeout       time.Duration
@@ -404,27 +419,21 @@ func (sc *SubscriptionClient) OnDisconnected(fn func()) *SubscriptionClient {
 	return sc
 }
 
-// get the running atomic lock status
-func (sc *SubscriptionClient) getIsRunning() bool {
-	return atomic.LoadInt32(&sc.isRunning) > 0
+// get internal client status
+func (sc *SubscriptionClient) getClientStatus() int32 {
+	return atomic.LoadInt32(&sc.clientStatus)
 }
 
 // set the running atomic lock status
-func (sc *SubscriptionClient) setIsRunning(value bool) {
-	if value {
-		atomic.StoreInt32(&sc.isRunning, 1)
-	} else {
-		atomic.StoreInt32(&sc.isRunning, 0)
-	}
+func (sc *SubscriptionClient) setClientStatus(value int32) {
+	atomic.StoreInt32(&sc.clientStatus, value)
 }
 
 // initializes the websocket connection
 func (sc *SubscriptionClient) init() error {
 
 	now := time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
-	sc.context.SetContext(ctx)
-	sc.context.cancel = cancel
+	sc.context.NewContext()
 
 	for {
 		var err error
@@ -508,7 +517,7 @@ func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface
 	}
 
 	// if the websocket client is running, start subscription immediately
-	if sc.getIsRunning() {
+	if sc.getClientStatus() == scStatusRunning {
 		if err := sc.protocol.Subscribe(sc.context, id, sub); err != nil {
 			return "", err
 		}
@@ -543,9 +552,9 @@ func (sc *SubscriptionClient) Run() error {
 		return fmt.Errorf("retry timeout. exiting...")
 	}
 
-	sc.setIsRunning(true)
+	sc.setClientStatus(scStatusRunning)
 	go func() {
-		for sc.getIsRunning() {
+		for sc.getClientStatus() == scStatusRunning {
 			select {
 			case <-sc.context.GetContext().Done():
 				return
@@ -558,9 +567,8 @@ func (sc *SubscriptionClient) Run() error {
 				if err := sc.context.GetWebsocketConn().ReadJSON(&message); err != nil {
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") {
-						if err = sc.Run(); err != nil {
-							sc.errorChan <- err
-						}
+						sc.setClientStatus(scStatusInitializing)
+						sc.context.Cancel()
 						return
 					}
 					closeStatus := websocket.CloseStatus(err)
@@ -582,13 +590,14 @@ func (sc *SubscriptionClient) Run() error {
 					}
 
 					if isClosedSubscriptionError(err) {
+						_ = sc.Close()
 						return
 					}
 
 					if sc.onError != nil {
 						if err = sc.onError(sc, err); err != nil {
 							// end the subscription if the callback return error
-							sc.Close()
+							_ = sc.Close()
 							return
 						}
 					}
@@ -601,10 +610,10 @@ func (sc *SubscriptionClient) Run() error {
 		}
 	}()
 
-	for sc.getIsRunning() {
+	for sc.getClientStatus() == scStatusRunning {
 		select {
 		case <-sc.context.GetContext().Done():
-			return nil
+			break
 		case e := <-sc.errorChan:
 			// stop the subscription if the error has stop message
 			if e == ErrSubscriptionStopped {
@@ -619,8 +628,8 @@ func (sc *SubscriptionClient) Run() error {
 			}
 		}
 	}
-	// if the running status is false, stop retrying
-	if !sc.getIsRunning() {
+	// if the client is closing, stop retrying
+	if sc.getClientStatus() == scStatusClosing {
 		return nil
 	}
 
@@ -630,12 +639,14 @@ func (sc *SubscriptionClient) Run() error {
 // close the running websocket connection and reset all subscription states
 func (sc *SubscriptionClient) reset() {
 	sc.context.SetAcknowledge(false)
-	isRunning := sc.getIsRunning()
+	isRunning := sc.getClientStatus() == scStatusRunning
 
 	for id, sub := range sc.context.GetSubscriptions() {
-		sub.SetStarted(false)
-		if isRunning {
-			_ = sc.protocol.Unsubscribe(sc.context, id)
+		if sub.GetStarted() {
+			sub.SetStarted(false)
+			if isRunning {
+				_ = sc.protocol.Unsubscribe(sc.context, id)
+			}
 			sc.context.SetSubscription(id, &sub)
 		}
 	}
@@ -645,11 +656,16 @@ func (sc *SubscriptionClient) reset() {
 		sc.context.SetWebsocketConn(nil)
 	}
 	_ = sc.context.Close()
+	sc.setClientStatus(scStatusInitializing)
 }
 
 // Close closes all subscription channel and websocket as well
 func (sc *SubscriptionClient) Close() (err error) {
-	sc.setIsRunning(false)
+	if sc.getClientStatus() == scStatusClosing {
+		return nil
+	}
+
+	sc.setClientStatus(scStatusClosing)
 	if sc.context == nil {
 		return
 	}

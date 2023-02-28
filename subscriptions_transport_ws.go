@@ -159,7 +159,6 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		ctx.Log(message, "server", GQLConnectionError)
 		_ = stw.Close(ctx)
 		_ = ctx.Close()
-		ctx.cancel()
 	case GQLComplete:
 		ctx.Log(message, "server", GQLComplete)
 		_ = stw.Unsubscribe(ctx, message.ID)
