@@ -114,7 +114,9 @@ func (r *resolver) broadcastHelloSaid() {
 		case id := <-unsubscribe:
 			delete(subscribers, id)
 		case s := <-r.helloSaidSubscriber:
-			subscribers[randomID()] = s
+			id := randomID()
+			log.Println("new client subscribed: ", id)
+			subscribers[id] = s
 		case e := <-r.helloSaidEvents:
 			for id, s := range subscribers {
 				go func(id string, s *helloSaidSubscriber) {
@@ -414,9 +416,7 @@ func TestSubscription_ResetClient(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer server.Shutdown(ctx)
-	defer cancel()
+	defer server.Shutdown(context.Background())
 
 	subscriptionClient.
 		OnError(func(sc *SubscriptionClient, err error) error {

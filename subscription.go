@@ -433,13 +433,12 @@ func (sc *SubscriptionClient) setClientStatus(value int32) {
 func (sc *SubscriptionClient) init() error {
 
 	now := time.Now()
-	sc.context.NewContext()
-
 	for {
 		var err error
 		var conn WebsocketConn
 		// allow custom websocket client
 		if sc.context.GetWebsocketConn() == nil {
+			sc.context.NewContext()
 			conn, err = sc.createConn(sc)
 			if err == nil {
 				sc.context.SetWebsocketConn(conn)
