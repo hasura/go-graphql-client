@@ -515,8 +515,9 @@ func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface
 		handler: sc.wrapHandler(handler),
 	}
 
-	// if the websocket client is running, start subscription immediately
-	if sc.getClientStatus() == scStatusRunning {
+	// if the websocket client is running and acknowledged by the server
+	// start subscription immediately
+	if sc.context != nil && sc.context.GetAcknowledge() {
 		if err := sc.protocol.Subscribe(sc.context, id, sub); err != nil {
 			return "", err
 		}
