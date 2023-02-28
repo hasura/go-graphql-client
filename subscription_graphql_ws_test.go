@@ -29,7 +29,7 @@ func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 
 type user_insert_input map[string]interface{}
 
-func graphqlWS_setupClients() (*Client, *SubscriptionClient) {
+func hasura_setupClients(protocol SubscriptionProtocolType) (*Client, *SubscriptionClient) {
 	endpoint := fmt.Sprintf("%s/v1/graphql", hasuraTestHost)
 	client := NewClient(endpoint, &http.Client{Transport: headerRoundTripper{
 		setHeaders: func(req *http.Request) {
@@ -39,7 +39,7 @@ func graphqlWS_setupClients() (*Client, *SubscriptionClient) {
 	}})
 
 	subscriptionClient := NewSubscriptionClient(endpoint).
-		WithProtocol(GraphQLWS).
+		WithProtocol(protocol).
 		WithConnectionParams(map[string]interface{}{
 			"headers": map[string]string{
 				"x-hasura-admin-secret": hasuraTestAdminSecret,
@@ -81,7 +81,7 @@ func waitHasuraService(timeoutSecs int) error {
 
 func TestGraphqlWS_Subscription(t *testing.T) {
 	stop := make(chan bool)
-	client, subscriptionClient := graphqlWS_setupClients()
+	client, subscriptionClient := hasura_setupClients(GraphQLWS)
 	msg := randomID()
 
 	subscriptionClient = subscriptionClient.
@@ -176,7 +176,7 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 }
 
 func TestGraphqlWS_SubscriptionRerun(t *testing.T) {
-	client, subscriptionClient := graphqlWS_setupClients()
+	client, subscriptionClient := hasura_setupClients(GraphQLWS)
 	msg := randomID()
 
 	subscriptionClient = subscriptionClient.

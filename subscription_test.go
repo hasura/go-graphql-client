@@ -407,16 +407,8 @@ func TestSubscriptionLifeCycle2(t *testing.T) {
 func TestSubscription_ResetClient(t *testing.T) {
 
 	stop := make(chan bool)
-	server := subscription_setupServer()
-	client, subscriptionClient := subscription_setupClients()
+	client, subscriptionClient := hasura_setupClients(SubscriptionsTransportWS)
 	msg := randomID()
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			log.Println(err)
-		}
-	}()
-
-	defer server.Shutdown(context.Background())
 
 	subscriptionClient.
 		OnError(func(sc *SubscriptionClient, err error) error {
@@ -426,19 +418,20 @@ func TestSubscription_ResetClient(t *testing.T) {
 		OnDisconnected(func() {
 			log.Println("disconnected")
 		})
+
 	/*
 		subscription {
-			helloSaid {
+			user {
 				id
-				msg
+				name
 			}
 		}
 	*/
 	var sub struct {
-		HelloSaid struct {
-			ID      String
-			Message String `graphql:"msg" json:"msg"`
-		} `graphql:"helloSaid" json:"helloSaid"`
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
 	}
 
 	subId1, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
@@ -454,8 +447,8 @@ func TestSubscription_ResetClient(t *testing.T) {
 			return nil
 		}
 
-		if sub.HelloSaid.Message != String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
 		}
 
 		return nil
@@ -465,18 +458,25 @@ func TestSubscription_ResetClient(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 
+	defer subscriptionClient.Close()
+
+	// wait until the subscription client connects to the server
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
+
 	/*
 		subscription {
-			helloSaid {
+			user {
 				id
-				msg
+				name
 			}
 		}
 	*/
 	var sub2 struct {
-		HelloSaid struct {
-			Message String `graphql:"msg" json:"msg"`
-		} `graphql:"helloSaid" json:"helloSaid"`
+		Users []struct {
+			ID int `graphql:"id"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
 	}
 
 	subId2, err := subscriptionClient.Subscribe(sub2, nil, func(data []byte, e error) error {
@@ -492,8 +492,8 @@ func TestSubscription_ResetClient(t *testing.T) {
 			return nil
 		}
 
-		if sub2.HelloSaid.Message != String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub2.HelloSaid.Message, msg)
+		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
 		}
 
 		return nil
@@ -504,34 +504,38 @@ func TestSubscription_ResetClient(t *testing.T) {
 	}
 
 	go func() {
-		// wait until the subscription client connects to the server
-		time.Sleep(2 * time.Second)
 
 		// call a mutation request to send message to the subscription
 		/*
-			mutation ($msg: String!) {
-				sayHello(msg: $msg) {
+			mutation InsertUser($objects: [user_insert_input!]!) {
+				insert_user(objects: $objects) {
 					id
-					msg
+					name
 				}
 			}
 		*/
 		var q struct {
-			SayHello struct {
-				ID  String
-				Msg String
-			} `graphql:"sayHello(msg: $msg)"`
+			InsertUser struct {
+				Returning []struct {
+					ID   int    `graphql:"id"`
+					Name string `graphql:"name"`
+				} `graphql:"returning"`
+			} `graphql:"insert_user(objects: $objects)"`
 		}
 		variables := map[string]interface{}{
-			"msg": String(msg),
+			"objects": []user_insert_input{
+				{
+					"name": msg,
+				},
+			},
 		}
-		err = client.Mutate(context.Background(), &q, variables, OperationName("SayHello"))
+		err = client.Mutate(context.Background(), &q, variables, OperationName("InsertUser"))
+
 		if err != nil {
 			(*t).Fatalf("got error: %v, want: nil", err)
 		}
 
 		time.Sleep(2 * time.Second)
-
 		// reset the subscription
 		log.Printf("resetting the subscription client...")
 		if err := subscriptionClient.Run(); err != nil {
@@ -542,7 +546,7 @@ func TestSubscription_ResetClient(t *testing.T) {
 	}()
 
 	go func() {
-		time.Sleep(6 * time.Second)
+		time.Sleep(10 * time.Second)
 		subscriptionClient.Unsubscribe(subId1)
 		subscriptionClient.Unsubscribe(subId2)
 	}()
@@ -554,4 +558,5 @@ func TestSubscription_ResetClient(t *testing.T) {
 	}
 
 	<-stop
+	panic(err)
 }
