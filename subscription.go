@@ -446,7 +446,7 @@ func (sc *SubscriptionClient) init() error {
 		}
 
 		if err == nil {
-			sc.context.SetReadLimit(sc.readLimit)
+			sc.context.GetWebsocketConn().SetReadLimit(sc.readLimit)
 			// send connection init event to the server
 			connectionParams := sc.connectionParams
 			if sc.connectionParamsFn != nil {
