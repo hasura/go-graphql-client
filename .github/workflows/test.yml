@@ -37,6 +37,24 @@ jobs:
         run: |
           cd ./example/hasura
           docker-compose up -d
+      - name: Wait until hasura service online
+        run: >-
+          printf "waiting for hasura service:\t "
+          for i in {1..120};
+          do
+            local code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' $1)"
+            if [[ $code != "200" ]]; then
+              printf "."
+              sleep 1
+            else
+              printf "\r\033[K$1:\t ${GREEN}OK${NC}\n"
+              exit 0
+            fi
+          done
+
+          printf "\n${RED}ERROR${NC}: the hasura service is failed to start
+          docker-compose logs 
+          exit 1
       - name: Run Go unit tests
         run: go test -v -race -coverprofile=coverage.out ./...
       - name: Go coverage format
