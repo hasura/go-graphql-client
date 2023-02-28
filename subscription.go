@@ -107,7 +107,7 @@ type SubscriptionProtocol interface {
 // SubscriptionContext represents a shared context for protocol implementations with the websocket connection inside
 type SubscriptionContext struct {
 	context.Context
-	WebsocketConn
+	websocketConn    WebsocketConn
 	OnConnected      func()
 	onDisconnected   func()
 	cancel           context.CancelFunc
@@ -163,14 +163,14 @@ func (sc *SubscriptionContext) Cancel() {
 func (sc *SubscriptionContext) GetWebsocketConn() WebsocketConn {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
-	return sc.WebsocketConn
+	return sc.websocketConn
 }
 
 // SetWebsocketConn set the current websocket connection
 func (sc *SubscriptionContext) SetWebsocketConn(conn WebsocketConn) {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
-	sc.WebsocketConn = conn
+	sc.websocketConn = conn
 }
 
 // GetSubscription get the subscription state by id
@@ -554,17 +554,18 @@ func (sc *SubscriptionClient) Run() error {
 
 	sc.setClientStatus(scStatusRunning)
 	go func() {
+		conn := sc.context.GetWebsocketConn()
+		if sc.context == nil || conn == nil {
+			return
+		}
+
 		for sc.getClientStatus() == scStatusRunning {
 			select {
 			case <-sc.context.GetContext().Done():
 				return
 			default:
-				if sc.context == nil || sc.context.GetWebsocketConn() == nil {
-					return
-				}
-
 				var message OperationMessage
-				if err := sc.context.GetWebsocketConn().ReadJSON(&message); err != nil {
+				if err := conn.ReadJSON(&message); err != nil {
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") {
 						sc.setClientStatus(scStatusInitializing)
