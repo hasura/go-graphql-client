@@ -88,22 +88,22 @@ func ConstructMutation(v interface{}, variables map[string]interface{}, options 
 }
 
 // ConstructSubscription build GraphQL subscription string from struct and variables
-func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, string, error) {
 	query, err := query(v)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if len(variables) > 0 {
-		return fmt.Sprintf("subscription %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), nil
+		return fmt.Sprintf("subscription %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), optionsOutput.operationName, nil
 	}
 	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
-		return "subscription" + query, nil
+		return "subscription" + query, optionsOutput.operationName, nil
 	}
-	return fmt.Sprintf("subscription %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), nil
+	return fmt.Sprintf("subscription %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), optionsOutput.operationName, nil
 }
 
 // queryArguments constructs a minified arguments string for variables.

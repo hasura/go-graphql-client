@@ -635,11 +635,16 @@ func TestConstructSubscription(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		got, err := ConstructSubscription(tc.inV, tc.inVariables, OperationName(tc.name))
+		got, gotName, err := ConstructSubscription(tc.inV, tc.inVariables, OperationName(tc.name))
 		if err != nil {
 			t.Error(err)
-		} else if got != tc.want {
-			t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
+		} else {
+			if got != tc.want {
+				t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
+			}
+			if gotName != tc.name {
+				t.Errorf("\ninvalid operation name \ngot:  %q\nwant: %q\n", gotName, tc.name)
+			}
 		}
 	}
 }

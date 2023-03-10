@@ -585,7 +585,12 @@ client.
 	// max size of response message
 	WithReadLimit(10*1024*1024).
 	// these operation event logs won't be printed
-	WithoutLogTypes(graphql.GQLData, graphql.GQLConnectionKeepAlive)
+	WithoutLogTypes(graphql.GQLData, graphql.GQLConnectionKeepAlive).
+	// the client should exit when all subscriptions were closed, default true
+	WithExitWhenNoSubscription(false).
+	// WithRetryStatusCodes allow retry the subscription connection when receiving one of these codes
+	// the input parameter can be number string or range, e.g 4000-5000 
+	WithRetryStatusCodes([]string{"4000", "4000-4050"})
 ```
 
 #### Subscription Protocols
@@ -629,6 +634,12 @@ client.OnDisconnected(fn func())
 // If this function is empty, or returns nil, the error is ignored
 // If returns error, the websocket connection will be terminated
 client.OnError(onError func(sc *SubscriptionClient, err error) error)
+
+// OnConnectionAlive event is triggered when the websocket receive a connection alive message (differs per protocol)
+client.OnConnectionAlive(fn func())
+
+// OnSubscriptionComplete event is triggered when the subscription receive a terminated message from the server
+client.OnSubscriptionComplete(fn func(sub Subscription))
 ```
 
 #### Custom HTTP Client

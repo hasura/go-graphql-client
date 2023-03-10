@@ -70,8 +70,8 @@ func (stw *subscriptionsTransportWS) ConnectionInit(ctx *SubscriptionContext, co
 }
 
 // Subscribe requests an graphql operation specified in the payload message
-func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id string, sub Subscription) error {
-	if sub.GetStarted() {
+func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, sub Subscription) error {
+	if sub.GetStatus() == SubscriptionRunning {
 		return nil
 	}
 	payload, err := json.Marshal(sub.GetPayload())
@@ -80,7 +80,7 @@ func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id stri
 	}
 	// send start message to the server
 	msg := OperationMessage{
-		ID:      id,
+		ID:      sub.id,
 		Type:    GQLStart,
 		Payload: payload,
 	}
@@ -89,45 +89,26 @@ func (stw *subscriptionsTransportWS) Subscribe(ctx *SubscriptionContext, id stri
 		return err
 	}
 
-	sub.SetStarted(true)
-	ctx.SetSubscription(id, &sub)
+	sub.SetStatus(SubscriptionRunning)
+	ctx.SetSubscription(sub.id, &sub)
 
 	return nil
 }
 
 // Unsubscribe sends stop message to server and close subscription channel
 // The input parameter is subscription ID that is returned from Subscribe function
-func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, id string) error {
-	if ctx == nil || ctx.GetWebsocketConn() == nil {
-		return nil
-	}
-	sub := ctx.GetSubscription(id)
-
-	if sub == nil {
-		return fmt.Errorf("subscription id %s doesn't not exist", id)
-	}
-
-	ctx.SetSubscription(id, nil)
-
+func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, sub Subscription) error {
 	// send stop message to the server
 	msg := OperationMessage{
-		ID:   id,
+		ID:   sub.id,
 		Type: GQLStop,
 	}
 
-	err := ctx.Send(msg, GQLStop)
-
-	// close the client if there is no running subscription
-	if ctx.GetSubscriptionsLength() == 0 {
-		ctx.Log("no running subscription. exiting...", "client", GQLInternal)
-		return ctx.Close()
-	}
-
-	return err
+	return ctx.Send(msg, GQLStop)
 }
 
 // OnMessage listens ongoing messages from server
-func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) {
+func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) error {
 
 	switch message.Type {
 	case GQLError:
@@ -139,17 +120,17 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 			Errors Errors
 		}
 		if subscription.handler == nil {
-			return
+			return nil
 		}
 
 		err := json.Unmarshal(message.Payload, &out)
 		if err != nil {
 			subscription.handler(nil, err)
-			return
+			return nil
 		}
 		if len(out.Errors) > 0 {
 			subscription.handler(nil, out.Errors)
-			return
+			return nil
 		}
 
 		var outData []byte
@@ -160,11 +141,23 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		subscription.handler(outData, nil)
 	case GQLConnectionError, "conn_err":
 		ctx.Log(message, "server", GQLConnectionError)
-		_ = stw.Close(ctx)
-		_ = ctx.Close()
+		return fmt.Errorf(string(message.Payload))
 	case GQLComplete:
 		ctx.Log(message, "server", GQLComplete)
-		_ = stw.Unsubscribe(ctx, message.ID)
+		sub := ctx.GetSubscription(message.ID)
+		if ctx.onSubscriptionComplete != nil {
+			if sub == nil {
+				ctx.onSubscriptionComplete(Subscription{
+					id: message.ID,
+				})
+			} else {
+				ctx.onSubscriptionComplete(*sub)
+				ctx.SetSubscription(message.ID, nil)
+			}
+		}
+		if sub != nil {
+			ctx.SetSubscription(message.ID, nil)
+		}
 	case GQLConnectionKeepAlive:
 		ctx.Log(message, "server", GQLConnectionKeepAlive)
 		if ctx.onConnectionAlive != nil {
@@ -177,9 +170,9 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		ctx.SetAcknowledge(true)
 		subscriptions := ctx.GetSubscriptions()
 		for id, sub := range subscriptions {
-			if err := stw.Subscribe(ctx, id, sub); err != nil {
-				_ = stw.Unsubscribe(ctx, id)
-				return
+			if err := stw.Subscribe(ctx, sub); err != nil {
+				ctx.Log(fmt.Sprintf("failed to subscribe: %s; id: %s; query: %s", err, id, sub.payload.Query), "client", GQLInternal)
+				return nil
 			}
 		}
 		if ctx.OnConnected != nil {
@@ -188,6 +181,8 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 	default:
 		ctx.Log(message, "server", GQLUnknown)
 	}
+
+	return nil
 }
 
 // Close terminates all subscriptions of the current websocket

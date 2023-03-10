@@ -84,7 +84,12 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	client, subscriptionClient := hasura_setupClients(GraphQLWS)
 	msg := randomID()
 
+	hasKeepAlive := false
+
 	subscriptionClient = subscriptionClient.
+		OnConnectionAlive(func() {
+			hasKeepAlive = true
+		}).
 		OnError(func(sc *SubscriptionClient, err error) error {
 			return err
 		})
@@ -173,6 +178,10 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	}
 
 	<-stop
+
+	if !hasKeepAlive {
+		t.Fatalf("expected OnConnectionAlive event, got none")
+	}
 }
 
 func TestGraphqlWS_SubscriptionRerun(t *testing.T) {

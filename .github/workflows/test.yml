@@ -38,7 +38,7 @@ jobs:
           cd ./example/hasura
           docker-compose up -d
       - name: Run Go unit tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
       - name: Go coverage format
         run: |
           go get github.com/boumenot/gocover-cobertura
