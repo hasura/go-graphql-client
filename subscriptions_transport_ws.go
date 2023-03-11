@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -141,7 +142,28 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 		subscription.handler(outData, nil)
 	case GQLConnectionError, "conn_err":
 		ctx.Log(message, "server", GQLConnectionError)
-		return fmt.Errorf(string(message.Payload))
+
+		// try to parse the error object
+		var payload interface{}
+		err := fmt.Errorf(string(message.Payload))
+		jsonErr := json.Unmarshal(message.Payload, &payload)
+		if jsonErr == nil {
+			var errMsg string
+			if p, ok := payload.(map[string]interface{}); ok {
+				if msg, ok := p["error"]; ok {
+					errMsg = fmt.Sprint(msg)
+				} else if msg, ok := p["message"]; ok {
+					errMsg = fmt.Sprint(msg)
+				}
+				err = Error{
+					Message:    errMsg,
+					Extensions: p,
+				}
+			} else if s, ok := payload.(string); ok {
+				return errors.New(s)
+			}
+		}
+		return err
 	case GQLComplete:
 		ctx.Log(message, "server", GQLComplete)
 		sub := ctx.GetSubscription(message.ID)

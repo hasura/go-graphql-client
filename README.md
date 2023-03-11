@@ -638,7 +638,7 @@ client.OnError(onError func(sc *SubscriptionClient, err error) error)
 // OnConnectionAlive event is triggered when the websocket receive a connection alive message (differs per protocol)
 client.OnConnectionAlive(fn func())
 
-// OnSubscriptionComplete event is triggered when the subscription receive a terminated message from the server
+// OnSubscriptionComplete event is triggered when the subscription receives a terminated message from the server
 client.OnSubscriptionComplete(fn func(sub Subscription))
 ```
 

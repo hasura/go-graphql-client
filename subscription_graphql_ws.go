@@ -86,7 +86,16 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", message.Type)
-		return fmt.Errorf(string(message.Payload))
+		var errs Errors
+		jsonErr := json.Unmarshal(message.Payload, &errs)
+		if jsonErr != nil {
+			subscription.handler(nil, fmt.Errorf("%s", string(message.Payload)))
+			return nil
+		}
+		if len(errs) > 0 {
+			subscription.handler(nil, errs)
+			return nil
+		}
 	case GQLNext:
 		ctx.Log(message, "server", message.Type)
 		var out struct {

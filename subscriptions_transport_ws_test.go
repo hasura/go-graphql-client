@@ -269,8 +269,8 @@ func TestTransportWS_basicTest(t *testing.T) {
 }
 
 func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
-	server := subscription_setupServer(8084)
-	client, subscriptionClient := subscription_setupClients(8084)
+	server := subscription_setupServer(8085)
+	client, subscriptionClient := subscription_setupClients(8085)
 	msg := randomID()
 	go func() {
 		if err := server.ListenAndServe(); err != nil {
@@ -633,4 +633,86 @@ func TestTransportWS_onDisconnected(t *testing.T) {
 	if !wasConnected {
 		t.Fatal("the OnConnected event must be triggered")
 	}
+}
+
+func TestTransportWS_OnError(t *testing.T) {
+	stop := make(chan bool)
+
+	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
+		WithTimeout(3 * time.Second).
+		WithProtocol(SubscriptionsTransportWS).
+		WithConnectionParams(map[string]interface{}{
+			"headers": map[string]string{
+				"x-hasura-admin-secret": "test",
+			},
+		}).WithLog(log.Println)
+
+	msg := randomID()
+
+	subscriptionClient = subscriptionClient.
+		OnConnected(func() {
+			log.Println("client connected")
+		}).
+		OnError(func(sc *SubscriptionClient, err error) error {
+			log.Println("OnError: ", err)
+			return err
+		})
+
+	/*
+		subscription {
+			user {
+				id
+				name
+			}
+		}
+	*/
+	var sub struct {
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	go func() {
+		unauthorizedErr := "invalid x-hasura-admin-secret/x-hasura-access-key"
+		err := subscriptionClient.Run()
+
+		if err == nil || err.Error() != unauthorizedErr {
+			(*t).Errorf("got error: %v, want: %s", err, unauthorizedErr)
+		}
+		stop <- true
+	}()
+
+	defer subscriptionClient.Close()
+
+	// wait until the subscription client connects to the server
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
+
+	<-stop
 }

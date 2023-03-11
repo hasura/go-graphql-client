@@ -418,7 +418,7 @@ func (sc *SubscriptionClient) WithConnectionParamsFn(fn func() map[string]interf
 	return sc
 }
 
-// WithTimeout updates write timeout of websocket client
+// WithTimeout updates read and write timeout of websocket client
 func (sc *SubscriptionClient) WithTimeout(timeout time.Duration) *SubscriptionClient {
 	sc.timeout = timeout
 	return sc
@@ -480,7 +480,7 @@ func (sc *SubscriptionClient) WithRetryStatusCodes(codes []string) *Subscription
 }
 
 // OnError event is triggered when there is any connection error. This is bottom exception handler level
-// If this function is empty, or returns nil, the error is ignored
+// If this function is empty, or returns nil, the client restarts the connection
 // If returns error, the websocket connection will be terminated
 func (sc *SubscriptionClient) OnError(onError func(sc *SubscriptionClient, err error) error) *SubscriptionClient {
 	sc.onError = onError
@@ -505,7 +505,7 @@ func (sc *SubscriptionClient) OnConnectionAlive(fn func()) *SubscriptionClient {
 	return sc
 }
 
-// OnSubscriptionComplete event is triggered when the subscription receive a terminated message from the server
+// OnSubscriptionComplete event is triggered when the subscription receives a terminated message from the server
 func (sc *SubscriptionClient) OnSubscriptionComplete(fn func(sub Subscription)) *SubscriptionClient {
 	sc.context.onSubscriptionComplete = fn
 	return sc
@@ -716,13 +716,9 @@ func (sc *SubscriptionClient) Run() error {
 						// close event from websocket client, exiting...
 						sc.context.Cancel()
 						return
-					case StatusConnectionInitialisationTimeout, StatusTooManyInitialisationRequests, StatusSubscriberAlreadyExists, StatusUnauthorized:
-						sc.context.Log(err, "server", GQLError)
-						sc.context.Cancel()
-						return
-					}
-
-					if isClosedSubscriptionError(err) {
+					case StatusInvalidMessage, StatusConnectionInitialisationTimeout, StatusTooManyInitialisationRequests, StatusSubscriberAlreadyExists, StatusUnauthorized:
+						sc.context.Log(err, "server", GQL_CONNECTION_ERROR)
+						sc.errorChan <- err
 						return
 					}
 
@@ -759,11 +755,13 @@ func (sc *SubscriptionClient) Run() error {
 			if sc.getClientStatus() == scStatusClosing {
 				return nil
 			}
+
 			// stop the subscription if the error has stop message
 			if e == ErrSubscriptionStopped {
 				return sc.Close()
 			}
 			if e == errRetry {
+				sc.context.Cancel()
 				return sc.Run()
 			}
 
@@ -771,6 +769,9 @@ func (sc *SubscriptionClient) Run() error {
 				if err := sc.onError(sc, e); err != nil {
 					sc.Close()
 					return err
+				} else {
+					sc.context.Cancel()
+					return sc.Run()
 				}
 			}
 		}
@@ -815,7 +816,7 @@ func (sc *SubscriptionClient) Close() (err error) {
 			continue
 		}
 		if sub.status == SubscriptionRunning {
-			if err := sc.protocol.Unsubscribe(sc.context, sub); err != nil && !isClosedSubscriptionError(err) {
+			if err := sc.protocol.Unsubscribe(sc.context, sub); err != nil {
 				unsubscribeErrors[id] = err
 			}
 		}
@@ -873,21 +874,6 @@ func connectionInit(conn *SubscriptionContext, connectionParams map[string]inter
 	return conn.Send(msg, GQLConnectionInit)
 }
 
-// accept closed websocket errors due to data races
-func isClosedSubscriptionError(err error) bool {
-
-	expectedErrorMessages := []string{
-		"received header with unexpected rsv bits",
-	}
-	errMsg := err.Error()
-	for _, msg := range expectedErrorMessages {
-		if strings.Contains(errMsg, msg) {
-			return true
-		}
-	}
-	return false
-}
-
 // default websocket handler implementation using https://github.com/nhooyr/websocket
 type WebsocketHandler struct {
 	ctx     context.Context
@@ -930,6 +916,9 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 	}
 
 	code := websocket.CloseStatus(err)
+	if code == -1 && strings.Contains(err.Error(), "received header with unexpected rsv bits") {
+		return int32(websocket.StatusNormalClosure)
+	}
 
 	return int32(code)
 }
