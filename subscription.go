@@ -30,12 +30,20 @@ const (
 	scStatusRunning      int32 = 1
 	scStatusClosing      int32 = 2
 
-	SubscriptionWaiting     SubscriptionStatus = 0
-	SubscriptionRunning     SubscriptionStatus = 1
+	// SubscriptionWaiting the subscription hasn't been registered to the server
+	SubscriptionWaiting SubscriptionStatus = 0
+	// SubscriptionRunning the subscription is up and running
+	SubscriptionRunning SubscriptionStatus = 1
+	// SubscriptionUnsubcribed the subscription was manually unsubscribed by the user
 	SubscriptionUnsubcribed SubscriptionStatus = 2
 
+	// SubscriptionsTransportWS the enum implements the subscription transport that follows Apollo's subscriptions-transport-ws protocol specification
+	// https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
 	SubscriptionsTransportWS SubscriptionProtocolType = "subscriptions-transport-ws"
-	GraphQLWS                SubscriptionProtocolType = "graphql-ws"
+
+	// GraphQLWS enum implements GraphQL over WebSocket Protocol (graphql-ws)
+	// https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
+	GraphQLWS SubscriptionProtocolType = "graphql-ws"
 
 	// Receiving a message of a type or format which is not specified in this document
 	// The <error-message> can be vaguely descriptive on why the received message is invalid.
@@ -797,6 +805,8 @@ func (sc *SubscriptionClient) Run() error {
 // close the running websocket connection and reset all subscription states
 func (sc *SubscriptionClient) reset() {
 	subContext := sc.getContext()
+	// fork a new subscription context to start a new session
+	// avoid conflicting with the last running session what is shutting down
 	newContext := &SubscriptionContext{
 		OnConnected:            subContext.OnConnected,
 		OnDisconnected:         subContext.OnDisconnected,
@@ -808,9 +818,16 @@ func (sc *SubscriptionClient) reset() {
 	}
 
 	for key, sub := range subContext.GetSubscriptions() {
+		// remove subscriptions that are manually unsubscribed by the user
+		if sub.status == SubscriptionUnsubcribed {
+			continue
+		}
 		if sub.status == SubscriptionRunning {
 			sc.protocol.Unsubscribe(subContext, sub)
 		}
+
+		// should restart subscriptions with new id
+		// to avoid subscription id conflict errors from the server
 		sub.id = uuid.NewString()
 		sub.status = SubscriptionWaiting
 		newContext.SetSubscription(key, &sub)
