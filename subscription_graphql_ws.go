@@ -63,7 +63,7 @@ func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, sub Subscription) erro
 	}
 
 	sub.SetStatus(SubscriptionRunning)
-	ctx.SetSubscription(sub.id, &sub)
+	ctx.SetSubscription(sub.GetKey(), &sub)
 
 	return nil
 }
@@ -125,22 +125,22 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 	case GQLComplete:
 		ctx.Log(message, "server", message.Type)
 		sub := ctx.GetSubscription(message.ID)
-		if ctx.onSubscriptionComplete != nil {
+		if ctx.OnSubscriptionComplete != nil {
 			if sub == nil {
-				ctx.onSubscriptionComplete(Subscription{
+				ctx.OnSubscriptionComplete(Subscription{
 					id: message.ID,
 				})
 			} else {
-				ctx.onSubscriptionComplete(*sub)
+				ctx.OnSubscriptionComplete(*sub)
 			}
 		}
 		if sub != nil {
-			ctx.SetSubscription(message.ID, nil)
+			ctx.SetSubscription(sub.GetKey(), nil)
 		}
 	case GQLPing:
 		ctx.Log(message, "server", GQLPing)
-		if ctx.onConnectionAlive != nil {
-			ctx.onConnectionAlive()
+		if ctx.OnConnectionAlive != nil {
+			ctx.OnConnectionAlive()
 		}
 		// send pong response message back to the server
 		msg := OperationMessage{

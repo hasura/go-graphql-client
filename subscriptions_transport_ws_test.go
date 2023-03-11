@@ -539,6 +539,32 @@ func TestTransportWS_ResetClient(t *testing.T) {
 		}
 
 		time.Sleep(2 * time.Second)
+
+		// test susbcription ids
+		sub1 := subscriptionClient.getContext().GetSubscription(subId1)
+		if sub1 == nil {
+			(*t).Fatalf("subscription 1 not found: %s", subId1)
+		} else {
+			if sub1.key != subId1 {
+				(*t).Fatalf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
+			}
+			if sub1.id != subId1 {
+				(*t).Fatalf("subscription id 1 not equal, got %s, want %s", subId1, sub1.id)
+			}
+		}
+		sub2 := subscriptionClient.getContext().GetSubscription(subId2)
+		if sub2 == nil {
+			(*t).Fatalf("subscription 2 not found: %s", subId2)
+		} else {
+			if sub2.key != subId2 {
+				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
+			}
+
+			if sub2.id != subId2 {
+				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.id)
+			}
+		}
+
 		// reset the subscription
 		log.Printf("resetting the subscription client...")
 		if err := subscriptionClient.Run(); err != nil {
@@ -550,6 +576,32 @@ func TestTransportWS_ResetClient(t *testing.T) {
 
 	go func() {
 		time.Sleep(8 * time.Second)
+
+		// test subscription ids
+		sub1 := subscriptionClient.getContext().GetSubscription(subId1)
+		if sub1 == nil {
+			(*t).Fatalf("subscription 1 not found: %s", subId1)
+		} else {
+			if sub1.key != subId1 {
+				(*t).Fatalf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
+			}
+			if sub1.id == subId1 {
+				(*t).Fatalf("subscription id 1 should equal, got %s, want %s", subId1, sub1.id)
+			}
+		}
+		sub2 := subscriptionClient.getContext().GetSubscription(subId2)
+		if sub2 == nil {
+			(*t).Fatalf("subscription 2 not found: %s", subId2)
+		} else {
+			if sub2.key != subId2 {
+				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
+			}
+
+			if sub2.id == subId2 {
+				(*t).Fatalf("subscription id 2 should equal, got %s, want %s", subId2, sub2.id)
+			}
+		}
+
 		subscriptionClient.Unsubscribe(subId1)
 		subscriptionClient.Unsubscribe(subId2)
 	}()
