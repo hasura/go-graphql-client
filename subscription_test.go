@@ -3,10 +3,14 @@ package graphql
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"testing"
 	"time"
+
+	"nhooyr.io/websocket"
 )
 
 func TestSubscription_LifeCycleEvents(t *testing.T) {
@@ -193,5 +197,110 @@ func TestSubscription_LifeCycleEvents(t *testing.T) {
 	}
 	if !wasDisconnected {
 		t.Fatalf("expected OnDisonnected event, got none")
+	}
+}
+
+func TestSubscription_WithRetryStatusCodes(t *testing.T) {
+	stop := make(chan bool)
+	msg := randomID()
+	disconnectedCount := 0
+	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
+		WithProtocol(GraphQLWS).
+		WithRetryStatusCodes("4400").
+		WithConnectionParams(map[string]interface{}{
+			"headers": map[string]string{
+				"x-hasura-admin-secret": "test",
+			},
+		}).WithLog(log.Println).
+		OnDisconnected(func() {
+			disconnectedCount++
+			if disconnectedCount > 5 {
+				stop <- true
+			}
+		}).
+		OnError(func(sc *SubscriptionClient, err error) error {
+			t.Fatal("should not receive error")
+			return err
+		})
+
+	/*
+		subscription {
+			user {
+				id
+				name
+			}
+		}
+	*/
+	var sub struct {
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	go func() {
+		if err := subscriptionClient.Run(); err != nil && websocket.CloseStatus(err) == 4400 {
+			(*t).Fatalf("should not get error 4400, got error: %v, want: nil", err)
+		}
+	}()
+
+	defer subscriptionClient.Close()
+
+	// wait until the subscription client connects to the server
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
+
+	<-stop
+}
+
+func TestSubscription_parseInt32Ranges(t *testing.T) {
+	fixtures := []struct {
+		Input    []string
+		Expected [][]int32
+		Error    error
+	}{
+		{
+			Input:    []string{"1", "2", "3-5"},
+			Expected: [][]int32{{1}, {2}, {3, 5}},
+		},
+		{
+			Input: []string{"a", "2", "3-5"},
+			Error: errors.New("invalid status code; input: a"),
+		},
+	}
+
+	for i, f := range fixtures {
+		output, err := parseInt32Ranges(f.Input)
+		if f.Expected != nil && fmt.Sprintf("%v", output) != fmt.Sprintf("%v", f.Expected) {
+			t.Fatalf("%d: got: %+v, want: %+v", i, output, f.Expected)
+		}
+		if f.Error != nil && f.Error.Error() != err.Error() {
+			t.Fatalf("%d: error should equal, got: %+v, want: %+v", i, err, f.Error)
+		}
 	}
 }

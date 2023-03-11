@@ -590,7 +590,7 @@ client.
 	WithExitWhenNoSubscription(false).
 	// WithRetryStatusCodes allow retry the subscription connection when receiving one of these codes
 	// the input parameter can be number string or range, e.g 4000-5000 
-	WithRetryStatusCodes([]string{"4000", "4000-4050"})
+	WithRetryStatusCodes("4000", "4000-4050")
 ```
 
 #### Subscription Protocols

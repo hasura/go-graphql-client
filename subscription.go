@@ -469,24 +469,12 @@ func (sc *SubscriptionClient) WithReadLimit(limit int64) *SubscriptionClient {
 
 // WithRetryStatusCodes allow retry the subscription connection when receiving one of these codes
 // the input parameter can be number string or range, e.g 4000-5000
-func (sc *SubscriptionClient) WithRetryStatusCodes(codes []string) *SubscriptionClient {
+func (sc *SubscriptionClient) WithRetryStatusCodes(codes ...string) *SubscriptionClient {
 
-	statusCodes := make([][]int32, 0, len(codes))
-	for _, c := range codes {
-		sRange := strings.Split(c, "-")
-		iRange := make([]int32, len(sRange))
-		for _, sCode := range sRange {
-			i, err := strconv.ParseInt(sCode, 10, 32)
-			if err != nil {
-				panic(fmt.Errorf("invalid status code; input: %+v, error: %s", sCode, err))
-			}
-			iRange = append(iRange, int32(i))
-		}
-		if len(iRange) > 0 {
-			statusCodes = append(statusCodes, iRange)
-		}
+	statusCodes, err := parseInt32Ranges(codes)
+	if err != nil {
+		panic(err)
 	}
-
 	sc.context.retryStatusCodes = statusCodes
 	return sc
 }
@@ -915,6 +903,26 @@ func connectionInit(conn *SubscriptionContext, connectionParams map[string]inter
 	}
 
 	return conn.Send(msg, GQLConnectionInit)
+}
+
+func parseInt32Ranges(codes []string) ([][]int32, error) {
+	statusCodes := make([][]int32, 0, len(codes))
+	for _, c := range codes {
+		sRange := strings.Split(c, "-")
+		iRange := make([]int32, len(sRange))
+		for j, sCode := range sRange {
+			i, err := strconv.ParseInt(sCode, 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid status code; input: %s", sCode)
+			}
+			iRange[j] = int32(i)
+		}
+		if len(iRange) > 0 {
+			statusCodes = append(statusCodes, iRange)
+		}
+	}
+
+	return statusCodes, nil
 }
 
 // default websocket handler implementation using https://github.com/nhooyr/websocket
