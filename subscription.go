@@ -634,13 +634,13 @@ func (sc *SubscriptionClient) doRaw(query string, variables map[string]interface
 	// if the websocket client is running and acknowledged by the server
 	// start subscription immediately
 	ctx := sc.getContext()
-	if ctx != nil && ctx.GetAcknowledge() {
+	if ctx != nil && sc.getClientStatus() == scStatusRunning && ctx.GetAcknowledge() {
 		if err := sc.protocol.Subscribe(ctx, sub); err != nil {
 			return "", err
 		}
+	} else {
+		ctx.SetSubscription(id, &sub)
 	}
-
-	ctx.SetSubscription(id, &sub)
 
 	return id, nil
 }
@@ -859,8 +859,8 @@ func (sc *SubscriptionClient) close(ctx *SubscriptionContext) (err error) {
 	conn := ctx.GetWebsocketConn()
 
 	for key, sub := range ctx.GetSubscriptions() {
+		ctx.SetSubscription(key, nil)
 		if conn == nil {
-			ctx.SetSubscription(key, nil)
 			continue
 		}
 		if sub.status == SubscriptionRunning {
