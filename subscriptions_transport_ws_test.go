@@ -540,7 +540,7 @@ func TestTransportWS_ResetClient(t *testing.T) {
 
 		time.Sleep(2 * time.Second)
 
-		// test susbcription ids
+		// test subscription ids
 		sub1 := subscriptionClient.getContext().GetSubscription(subId1)
 		if sub1 == nil {
 			(*t).Fatalf("subscription 1 not found: %s", subId1)

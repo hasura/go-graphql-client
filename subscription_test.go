@@ -196,7 +196,7 @@ func TestSubscription_LifeCycleEvents(t *testing.T) {
 		t.Fatalf("expected OnConnected event, got none")
 	}
 	if !wasDisconnected {
-		t.Fatalf("expected OnDisonnected event, got none")
+		t.Fatalf("expected OnDisconnected event, got none")
 	}
 }
 

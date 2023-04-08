@@ -34,8 +34,8 @@ const (
 	SubscriptionWaiting SubscriptionStatus = 0
 	// SubscriptionRunning the subscription is up and running
 	SubscriptionRunning SubscriptionStatus = 1
-	// SubscriptionUnsubcribed the subscription was manually unsubscribed by the user
-	SubscriptionUnsubcribed SubscriptionStatus = 2
+	// SubscriptionUnsubscribed the subscription was manually unsubscribed by the user
+	SubscriptionUnsubscribed SubscriptionStatus = 2
 
 	// SubscriptionsTransportWS the enum implements the subscription transport that follows Apollo's subscriptions-transport-ws protocol specification
 	// https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
@@ -668,14 +668,14 @@ func (sc *SubscriptionClient) Unsubscribe(id string) error {
 		return fmt.Errorf("%s, %w", id, ErrSubscriptionNotExists)
 	}
 
-	if sub.status == SubscriptionUnsubcribed {
+	if sub.status == SubscriptionUnsubscribed {
 		return nil
 	}
 	var err error
 	if sub.status == SubscriptionRunning {
 		err = sc.protocol.Unsubscribe(ctx, *sub)
 	}
-	sub.status = SubscriptionUnsubcribed
+	sub.status = SubscriptionUnsubscribed
 	ctx.SetSubscription(sub.key, sub)
 
 	sc.checkSubscriptionStatuses(ctx)
@@ -821,7 +821,7 @@ func (sc *SubscriptionClient) reset() {
 
 	for key, sub := range subContext.GetSubscriptions() {
 		// remove subscriptions that are manually unsubscribed by the user
-		if sub.status == SubscriptionUnsubcribed {
+		if sub.status == SubscriptionUnsubscribed {
 			continue
 		}
 		if sub.status == SubscriptionRunning {
