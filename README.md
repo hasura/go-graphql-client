@@ -11,8 +11,6 @@ Package `graphql` provides a GraphQL client implementation.
 
 For more information, see package [`github.com/shurcooL/githubv4`](https://github.com/shurcooL/githubv4), which is a specialized version targeting GitHub GraphQL API v4. That package is driving the feature development.
 
-**Status:** In active early research and development. The API will change when opportunities for improvement are discovered; it is not yet frozen.
-
 **Note**: Before v0.8.0, `QueryRaw`, `MutateRaw` and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
 
 - [go-graphql-client](#go-graphql-client)
