@@ -114,6 +114,16 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", GQLError)
+		var errs Errors
+		jsonErr := json.Unmarshal(message.Payload, &errs)
+		if jsonErr != nil {
+			subscription.handler(nil, fmt.Errorf("%s", string(message.Payload)))
+			return nil
+		}
+		if len(errs) > 0 {
+			subscription.handler(nil, errs)
+			return nil
+		}
 	case GQLData:
 		ctx.Log(message, "server", GQLData)
 		var out struct {
