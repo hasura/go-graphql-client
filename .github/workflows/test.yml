@@ -29,7 +29,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Install dependencies
-        run: go install -t -v ./...
+        run: go install ./...
       - name: Format
         run: diff -u <(echo -n) <(gofmt -d -s .)
       - name: Vet
