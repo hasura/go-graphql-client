@@ -29,7 +29,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Install dependencies
-        run: go install ./...
+        run: |
+          go get -t -v ./...
+          go install ./...
       - name: Format
         run: diff -u <(echo -n) <(gofmt -d -s .)
       - name: Vet
@@ -42,6 +44,7 @@ jobs:
         run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
       - name: Go coverage format
         run: |
+          go get github.com/boumenot/gocover-cobertura
           go install github.com/boumenot/gocover-cobertura
           gocover-cobertura < coverage.out > coverage.xml
       - name: Code Coverage Summary Report
