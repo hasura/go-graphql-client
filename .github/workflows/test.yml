@@ -14,7 +14,8 @@ jobs:
   test-go:
     name: Run Go lint and unit tests
     runs-on: ubuntu-20.04
-    permissions: write-all
+    permissions:
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -62,9 +63,8 @@ jobs:
           thresholds: "60 80"
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
-        if: github.event_name == 'pull_request'
+        if: ${{ github.event_name == 'pull_request_target' }}
         with:
-          recreate: true
           path: code-coverage-results.md
       - name: Dump docker logs on failure
         if: failure()
