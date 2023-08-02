@@ -120,12 +120,18 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 
 // Request the common method that send graphql request
 func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options ...Option) ([]byte, *http.Response, io.Reader, Errors) {
+	optionsOutput, err := constructOptions(options)
+	if err != nil {
+		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
+	}
+
 	in := GraphQLRequestPayload{
-		Query:     query,
-		Variables: variables,
+		Query:         query,
+		Variables:     variables,
+		OperationName: optionsOutput.operationName,
 	}
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(in)
+	err = json.NewEncoder(&buf).Encode(in)
 	if err != nil {
 		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
 	}
