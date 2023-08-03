@@ -97,7 +97,7 @@ func constructMutation(v interface{}, variables map[string]interface{}, options 
 	return fmt.Sprintf("mutation %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), optionsOutput, nil
 }
 
-// ConstructQuery build GraphQL mutation string from struct and variables
+// ConstructMutation build GraphQL mutation string from struct and variables
 func ConstructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
 	query, _, err := constructMutation(v, variables, options...)
 	if err != nil {
