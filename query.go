@@ -247,6 +247,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 			value, ok := f.Tag.Lookup("graphql")
+
 			// Skip this field if the tag value is hyphen
 			if value == "-" {
 				continue
@@ -254,16 +255,29 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			if iter != 0 {
 				io.WriteString(w, ",")
 			}
-			iter++
 
+			// Getting the filters for where in query
+			filterValue, filter := f.Tag.Lookup("graphql_filter")
 			inlineField := f.Anonymous && !ok
 			if !inlineField {
 				if ok {
-					io.WriteString(w, value)
+					if filter {
+						io.WriteString(w, value[:len(value)-1]+", where:")
+						io.WriteString(w, filterValue+")")
+					} else {
+						io.WriteString(w, value)
+					}
+
 				} else {
-					io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
+					if filter {
+						io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
+						io.WriteString(w, "(where: "+filterValue+")")
+					} else {
+						io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
+					}
 				}
 			}
+
 			// Skip writeQuery if the GraphQL type associated with the filed is scalar
 			if isTrue(f.Tag.Get("scalar")) {
 				continue
@@ -272,6 +286,8 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			if err != nil {
 				return fmt.Errorf("failed to write query for struct field `%v`: %w", f.Name, err)
 			}
+
+			iter++
 		}
 		if !inline {
 			io.WriteString(w, "}")
