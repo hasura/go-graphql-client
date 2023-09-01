@@ -102,6 +102,7 @@ func (om OperationMessage) String() string {
 type WebsocketConn interface {
 	ReadJSON(v interface{}) error
 	WriteJSON(v interface{}) error
+	Ping() error
 	Close() error
 	// SetReadLimit sets the maximum size in bytes for a message read from the peer. If a
 	// message exceeds the limit, the connection sends a close message to the peer
@@ -456,6 +457,35 @@ func (sc *SubscriptionClient) WithRetryTimeout(timeout time.Duration) *Subscript
 // WithExitWhenNoSubscription the client should exit when all subscriptions were closed
 func (sc *SubscriptionClient) WithExitWhenNoSubscription(value bool) *SubscriptionClient {
 	sc.exitWhenNoSubscription = value
+	return sc
+}
+
+// Keep alive subroutine to send ping on specified interval
+func startKeepAlive(ctx context.Context, c WebsocketConn, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Ping the websocket. You might want to handle any potential errors.
+			err := c.Ping()
+			if err != nil {
+				fmt.Printf("%s => Failed to ping server\n", time.Now().Format(time.TimeOnly))
+				// Handle the error, maybe log it, close the connection, etc.
+			}
+		case <-ctx.Done():
+			// If the context is cancelled, stop the pinging.
+			return
+		}
+	}
+}
+
+// WithKeepAlive programs the websocket to ping on the specified interval
+func (sc *SubscriptionClient) WithKeepAlive(interval time.Duration) *SubscriptionClient {
+	conn := sc.context.websocketConn
+	// Run keep alive in subroutine to avoid blocking
+	go startKeepAlive(sc.getContext().GetContext(), conn, interval);
 	return sc
 }
 
@@ -966,6 +996,13 @@ func (wh *WebsocketHandler) ReadJSON(v interface{}) error {
 	return wsjson.Read(ctx, wh.Conn, v)
 }
 
+// Ping sends a ping to the peer and waits for a pong
+func (wh *WebsocketHandler) Ping() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return wh.Conn.Ping(ctx);
+}
+
 // Close implements the function to close the websocket connection
 func (wh *WebsocketHandler) Close() error {
 	return wh.Conn.Close(websocket.StatusNormalClosure, "close websocket")
@@ -977,9 +1014,7 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 	// context timeout error returned from ReadJSON or WriteJSON
 	// try to ping the server, if failed return abnormal closeure error
 	if errors.Is(err, context.DeadlineExceeded) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if pingErr := wh.Ping(ctx); pingErr != nil {
+		if pingErr := wh.Ping(); pingErr != nil {
 			return int32(websocket.StatusNoStatusRcvd)
 		}
 		return -1
