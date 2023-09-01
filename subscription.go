@@ -364,6 +364,7 @@ type SubscriptionClient struct {
 	onError                func(sc *SubscriptionClient, err error) error
 	errorChan              chan error
 	exitWhenNoSubscription bool
+	keepAliveInterval      time.Duration
 	mutex                  sync.Mutex
 }
 
@@ -483,9 +484,7 @@ func startKeepAlive(ctx context.Context, c WebsocketConn, interval time.Duration
 
 // WithKeepAlive programs the websocket to ping on the specified interval
 func (sc *SubscriptionClient) WithKeepAlive(interval time.Duration) *SubscriptionClient {
-	conn := sc.context.websocketConn
-	// Run keep alive in subroutine to avoid blocking
-	go startKeepAlive(sc.getContext().GetContext(), conn, interval);
+	sc.keepAliveInterval = interval
 	return sc
 }
 
@@ -738,6 +737,10 @@ func (sc *SubscriptionClient) Run() error {
 
 	sc.setClientStatus(scStatusRunning)
 	ctx := subContext.GetContext()
+
+	if sc.keepAliveInterval > 0 {
+		go startKeepAlive(ctx, conn, sc.keepAliveInterval)
+	}
 
 	go func() {
 		for {
@@ -1000,7 +1003,7 @@ func (wh *WebsocketHandler) ReadJSON(v interface{}) error {
 func (wh *WebsocketHandler) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return wh.Conn.Ping(ctx);
+	return wh.Conn.Ping(ctx)
 }
 
 // Close implements the function to close the websocket connection
