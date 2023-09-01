@@ -365,6 +365,7 @@ type SubscriptionClient struct {
 	errorChan              chan error
 	exitWhenNoSubscription bool
 	keepAliveInterval      time.Duration
+	retryDelay             time.Duration
 	mutex                  sync.Mutex
 }
 
@@ -379,6 +380,8 @@ func NewSubscriptionClient(url string) *SubscriptionClient {
 		errorChan:              make(chan error),
 		protocol:               &subscriptionsTransportWS{},
 		exitWhenNoSubscription: true,
+		keepAliveInterval:      0 * time.Second,
+		retryDelay:             1 * time.Second,
 		context: &SubscriptionContext{
 			subscriptions: make(map[string]Subscription),
 		},
@@ -485,6 +488,12 @@ func startKeepAlive(ctx context.Context, c WebsocketConn, interval time.Duration
 // WithKeepAlive programs the websocket to ping on the specified interval
 func (sc *SubscriptionClient) WithKeepAlive(interval time.Duration) *SubscriptionClient {
 	sc.keepAliveInterval = interval
+	return sc
+}
+
+// WithRetryDelay set the delay time before retrying the connection
+func (sc *SubscriptionClient) WithRetryDelay(delay time.Duration) *SubscriptionClient {
+	sc.retryDelay = delay
 	return sc
 }
 
@@ -609,8 +618,8 @@ func (sc *SubscriptionClient) init() error {
 			}
 			return err
 		}
-		ctx.Log(fmt.Sprintf("%s. retry in second...", err.Error()), "client", GQLInternal)
-		time.Sleep(time.Second)
+		ctx.Log(fmt.Sprintf("%s. retry in %d second...", err.Error(), sc.retryDelay/time.Second), "client", GQLInternal)
+		time.Sleep(sc.retryDelay)
 	}
 }
 
