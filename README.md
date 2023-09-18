@@ -906,7 +906,7 @@ Enable debug mode with the `WithDebug` function. If the request is failed, the r
 }
 ```
 
-For debugging queries you can use Construct* functions to see how the generated query looks like:
+For debugging queries, you can use `Construct*` functions to see what the generated query looks like:
 ```go
 // ConstructQuery build GraphQL query string from struct and variables
 func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error)
