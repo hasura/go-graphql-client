@@ -13,7 +13,8 @@ import (
 	"nhooyr.io/websocket"
 )
 
-func TestSubscription_LifeCycleEvents(t *testing.T) {
+func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
+
 	server := subscription_setupServer(8082)
 	client, subscriptionClient := subscription_setupClients(8082)
 	msg := randomID()
@@ -84,6 +85,7 @@ func TestSubscription_LifeCycleEvents(t *testing.T) {
 	subscriptionClient = subscriptionClient.
 		WithExitWhenNoSubscription(false).
 		WithTimeout(3 * time.Second).
+		WithSyncMode(syncMode).
 		OnConnected(func() {
 			lock.Lock()
 			defer lock.Unlock()
@@ -198,6 +200,14 @@ func TestSubscription_LifeCycleEvents(t *testing.T) {
 	if !wasDisconnected {
 		t.Fatalf("expected OnDisconnected event, got none")
 	}
+}
+
+func TestSubscription_LifeCycleEvents(t *testing.T) {
+	testSubscription_LifeCycleEvents(t, false)
+}
+
+func TestSubscription_WithSyncMode(t *testing.T) {
+	testSubscription_LifeCycleEvents(t, true)
 }
 
 func TestSubscription_WithRetryStatusCodes(t *testing.T) {

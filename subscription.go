@@ -364,6 +364,7 @@ type SubscriptionClient struct {
 	onError                func(sc *SubscriptionClient, err error) error
 	errorChan              chan error
 	exitWhenNoSubscription bool
+	syncMode               bool
 	keepAliveInterval      time.Duration
 	retryDelay             time.Duration
 	mutex                  sync.Mutex
@@ -461,6 +462,12 @@ func (sc *SubscriptionClient) WithRetryTimeout(timeout time.Duration) *Subscript
 // WithExitWhenNoSubscription the client should exit when all subscriptions were closed
 func (sc *SubscriptionClient) WithExitWhenNoSubscription(value bool) *SubscriptionClient {
 	sc.exitWhenNoSubscription = value
+	return sc
+}
+
+// WithSyncMode subscription messages are executed in sequence (without goroutine)
+func (sc *SubscriptionClient) WithSyncMode(value bool) *SubscriptionClient {
+	sc.syncMode = value
 	return sc
 }
 
@@ -806,13 +813,20 @@ func (sc *SubscriptionClient) Run() error {
 				if sub == nil {
 					sub = &Subscription{}
 				}
-				go func() {
+
+				execMessage := func() {
 					if err := sc.protocol.OnMessage(subContext, *sub, message); err != nil {
 						sc.errorChan <- err
 					}
 
 					sc.checkSubscriptionStatuses(subContext)
-				}()
+				}
+
+				if sc.syncMode {
+					execMessage()
+				} else {
+					go execMessage()
+				}
 			}
 		}
 	}()
