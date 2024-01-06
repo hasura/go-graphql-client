@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -293,6 +294,9 @@ func (sc *SubscriptionContext) Close() error {
 
 	sc.Cancel()
 
+	if errors.Is(err, net.ErrClosed) {
+		return nil
+	}
 	return err
 }
 
@@ -767,7 +771,7 @@ func (sc *SubscriptionClient) Run() error {
 				var message OperationMessage
 				if err := conn.ReadJSON(&message); err != nil {
 					// manual EOF check
-					if err == io.EOF || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset by peer") {
+					if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
 						sc.errorChan <- errRetry
 						return
 					}
@@ -922,7 +926,7 @@ func (sc *SubscriptionClient) close(ctx *SubscriptionContext) (err error) {
 			continue
 		}
 		if sub.status == SubscriptionRunning {
-			if err := sc.protocol.Unsubscribe(ctx, sub); err != nil {
+			if err := sc.protocol.Unsubscribe(ctx, sub); err != nil && !errors.Is(err, net.ErrClosed) {
 				unsubscribeErrors[key] = err
 			}
 		}
