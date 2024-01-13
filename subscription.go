@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,6 +103,7 @@ func (om OperationMessage) String() string {
 type WebsocketConn interface {
 	ReadJSON(v interface{}) error
 	WriteJSON(v interface{}) error
+	Ping() error
 	Close() error
 	// SetReadLimit sets the maximum size in bytes for a message read from the peer. If a
 	// message exceeds the limit, the connection sends a close message to the peer
@@ -292,6 +294,9 @@ func (sc *SubscriptionContext) Close() error {
 
 	sc.Cancel()
 
+	if errors.Is(err, net.ErrClosed) {
+		return nil
+	}
 	return err
 }
 
@@ -363,6 +368,9 @@ type SubscriptionClient struct {
 	onError                func(sc *SubscriptionClient, err error) error
 	errorChan              chan error
 	exitWhenNoSubscription bool
+	syncMode               bool
+	keepAliveInterval      time.Duration
+	retryDelay             time.Duration
 	mutex                  sync.Mutex
 }
 
@@ -377,6 +385,8 @@ func NewSubscriptionClient(url string) *SubscriptionClient {
 		errorChan:              make(chan error),
 		protocol:               &subscriptionsTransportWS{},
 		exitWhenNoSubscription: true,
+		keepAliveInterval:      0 * time.Second,
+		retryDelay:             1 * time.Second,
 		context: &SubscriptionContext{
 			subscriptions: make(map[string]Subscription),
 		},
@@ -456,6 +466,45 @@ func (sc *SubscriptionClient) WithRetryTimeout(timeout time.Duration) *Subscript
 // WithExitWhenNoSubscription the client should exit when all subscriptions were closed
 func (sc *SubscriptionClient) WithExitWhenNoSubscription(value bool) *SubscriptionClient {
 	sc.exitWhenNoSubscription = value
+	return sc
+}
+
+// WithSyncMode subscription messages are executed in sequence (without goroutine)
+func (sc *SubscriptionClient) WithSyncMode(value bool) *SubscriptionClient {
+	sc.syncMode = value
+	return sc
+}
+
+// Keep alive subroutine to send ping on specified interval
+func startKeepAlive(ctx context.Context, c WebsocketConn, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Ping the websocket. You might want to handle any potential errors.
+			err := c.Ping()
+			if err != nil {
+				fmt.Printf("%s => Failed to ping server\n", time.Now().Format(time.TimeOnly))
+				// Handle the error, maybe log it, close the connection, etc.
+			}
+		case <-ctx.Done():
+			// If the context is cancelled, stop the pinging.
+			return
+		}
+	}
+}
+
+// WithKeepAlive programs the websocket to ping on the specified interval
+func (sc *SubscriptionClient) WithKeepAlive(interval time.Duration) *SubscriptionClient {
+	sc.keepAliveInterval = interval
+	return sc
+}
+
+// WithRetryDelay set the delay time before retrying the connection
+func (sc *SubscriptionClient) WithRetryDelay(delay time.Duration) *SubscriptionClient {
+	sc.retryDelay = delay
 	return sc
 }
 
@@ -580,8 +629,8 @@ func (sc *SubscriptionClient) init() error {
 			}
 			return err
 		}
-		ctx.Log(fmt.Sprintf("%s. retry in second...", err.Error()), "client", GQLInternal)
-		time.Sleep(time.Second)
+		ctx.Log(fmt.Sprintf("%s. retry in %d second...", err.Error(), sc.retryDelay/time.Second), "client", GQLInternal)
+		time.Sleep(sc.retryDelay)
 	}
 }
 
@@ -709,6 +758,10 @@ func (sc *SubscriptionClient) Run() error {
 	sc.setClientStatus(scStatusRunning)
 	ctx := subContext.GetContext()
 
+	if sc.keepAliveInterval > 0 {
+		go startKeepAlive(ctx, conn, sc.keepAliveInterval)
+	}
+
 	go func() {
 		for {
 			select {
@@ -718,7 +771,7 @@ func (sc *SubscriptionClient) Run() error {
 				var message OperationMessage
 				if err := conn.ReadJSON(&message); err != nil {
 					// manual EOF check
-					if err == io.EOF || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset by peer") {
+					if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
 						sc.errorChan <- errRetry
 						return
 					}
@@ -764,13 +817,20 @@ func (sc *SubscriptionClient) Run() error {
 				if sub == nil {
 					sub = &Subscription{}
 				}
-				go func() {
+
+				execMessage := func() {
 					if err := sc.protocol.OnMessage(subContext, *sub, message); err != nil {
 						sc.errorChan <- err
 					}
 
 					sc.checkSubscriptionStatuses(subContext)
-				}()
+				}
+
+				if sc.syncMode {
+					execMessage()
+				} else {
+					go execMessage()
+				}
 			}
 		}
 	}()
@@ -866,7 +926,7 @@ func (sc *SubscriptionClient) close(ctx *SubscriptionContext) (err error) {
 			continue
 		}
 		if sub.status == SubscriptionRunning {
-			if err := sc.protocol.Unsubscribe(ctx, sub); err != nil {
+			if err := sc.protocol.Unsubscribe(ctx, sub); err != nil && !errors.Is(err, net.ErrClosed) {
 				unsubscribeErrors[key] = err
 			}
 		}
@@ -966,6 +1026,13 @@ func (wh *WebsocketHandler) ReadJSON(v interface{}) error {
 	return wsjson.Read(ctx, wh.Conn, v)
 }
 
+// Ping sends a ping to the peer and waits for a pong
+func (wh *WebsocketHandler) Ping() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return wh.Conn.Ping(ctx)
+}
+
 // Close implements the function to close the websocket connection
 func (wh *WebsocketHandler) Close() error {
 	return wh.Conn.Close(websocket.StatusNormalClosure, "close websocket")
@@ -977,9 +1044,7 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 	// context timeout error returned from ReadJSON or WriteJSON
 	// try to ping the server, if failed return abnormal closeure error
 	if errors.Is(err, context.DeadlineExceeded) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if pingErr := wh.Ping(ctx); pingErr != nil {
+		if pingErr := wh.Ping(); pingErr != nil {
 			return int32(websocket.StatusNoStatusRcvd)
 		}
 		return -1

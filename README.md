@@ -590,7 +590,9 @@ client.
 	WithExitWhenNoSubscription(false).
 	// WithRetryStatusCodes allow retry the subscription connection when receiving one of these codes
 	// the input parameter can be number string or range, e.g 4000-5000
-	WithRetryStatusCodes("4000", "4000-4050")
+	WithRetryStatusCodes("4000", "4000-4050").
+	// WithSyncMode subscription messages are executed in sequence (without goroutine)
+	WithSyncMode(true)
 ```
 
 #### Subscription Protocols
@@ -934,22 +936,23 @@ Enable debug mode with the `WithDebug` function. If the request is failed, the r
 }
 ```
 
-Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To assure the GraphQL query is expected, it's necessary to write some unit test for query construction.
-
+For debugging queries, you can use `Construct*` functions to see what the generated query looks like:
 ```go
 // ConstructQuery build GraphQL query string from struct and variables
 func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error)
 
-// ConstructQuery build GraphQL mutation string from struct and variables
+// ConstructMutation build GraphQL mutation string from struct and variables
 func ConstructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error)
 
 // ConstructSubscription build GraphQL subscription string from struct and variables
-func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, error)
+func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, string, error)
 
 // UnmarshalGraphQL parses the JSON-encoded GraphQL response data and stores
 // the result in the GraphQL query data structure pointed to by v.
 func UnmarshalGraphQL(data []byte, v interface{}) error
 ```
+
+Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To assure the GraphQL query is expected, it's necessary to write some unit test for query construction.
 
 Directories
 -----------
