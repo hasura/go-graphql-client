@@ -332,11 +332,12 @@ type Error struct {
 		Line   int `json:"line"`
 		Column int `json:"column"`
 	} `json:"locations"`
+	Path []interface{} `json:"path"`
 }
 
 // Error implements error interface.
 func (e Error) Error() string {
-	return fmt.Sprintf("Message: %s, Locations: %+v, Extensions: %+v", e.Message, e.Locations, e.Extensions)
+	return fmt.Sprintf("Message: %s, Locations: %+v, Extensions: %+v, Path: %+v", e.Message, e.Locations, e.Extensions, e.Path)
 }
 
 // Error implements error interface.

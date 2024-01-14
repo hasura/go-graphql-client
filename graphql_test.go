@@ -60,7 +60,7 @@ func TestClient_Query_partialDataWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[], Path: [node2]"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 
@@ -110,7 +110,7 @@ func TestClient_Query_partialDataRawQueryWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil\n")
 	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[], Path: [node2]"; got != want {
 		t.Errorf("got error: %v, want: %v\n", got, want)
 	}
 	if q.Node1 == nil || string(q.Node1) != `{"id":"MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng=="}` {
@@ -165,7 +165,7 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), "Message: Field 'user' is missing required arguments: login, Locations: [{Line:7 Column:3}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Field 'user' is missing required arguments: login, Locations: [{Line:7 Column:3}], Extensions: map[], Path: []"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
@@ -215,7 +215,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error]`; got != want {
+	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
