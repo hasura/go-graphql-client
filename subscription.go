@@ -55,7 +55,7 @@ const (
 	StatusConnectionInitialisationTimeout websocket.StatusCode = 4408
 	// Subscriber for <generated-id> already exists
 	StatusSubscriberAlreadyExists websocket.StatusCode = 4409
-	// Too many ialisation requests
+	// Too many initialisation requests
 	StatusTooManyInitialisationRequests websocket.StatusCode = 4429
 )
 
