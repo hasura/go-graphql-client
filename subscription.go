@@ -55,7 +55,7 @@ const (
 	StatusConnectionInitialisationTimeout websocket.StatusCode = 4408
 	// Subscriber for <generated-id> already exists
 	StatusSubscriberAlreadyExists websocket.StatusCode = 4409
-	// Too many initialisation requests
+	// Too many ialisation requests
 	StatusTooManyInitialisationRequests websocket.StatusCode = 4429
 )
 
@@ -742,7 +742,7 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	if err := sc.init(); err != nil {
-		return fmt.Errorf("retry timeout. exiting...")
+		return fmt.Errorf("retry timeout, %w", err)
 	}
 
 	subContext := sc.getContext()
