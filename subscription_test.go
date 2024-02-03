@@ -79,7 +79,10 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer server.Shutdown(ctx)
+	defer func() {
+		_ = server.Shutdown(ctx)
+	}()
+
 	defer cancel()
 
 	subscriptionClient = subscriptionClient.
@@ -161,7 +164,8 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		}
 		err := client.Mutate(context.Background(), &q, variables, OperationName("SayHello"))
 		if err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
+			t.Errorf("got error: %v, want: nil", err)
+			return
 		}
 
 		time.Sleep(2 * time.Second)
@@ -274,7 +278,7 @@ func TestSubscription_WithRetryStatusCodes(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err != nil && websocket.CloseStatus(err) == 4400 {
-			(*t).Fatalf("should not get error 4400, got error: %v, want: nil", err)
+			t.Errorf("should not get error 4400, got error: %v, want: nil", err)
 		}
 	}()
 
@@ -390,13 +394,13 @@ func TestSubscription_closeThenRun(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
+			t.Errorf("got error: %v, want: nil", err)
 		}
 	}()
 
 	time.Sleep(3 * time.Second)
 	if err := subscriptionClient.Close(); err != nil {
-		(*t).Fatalf("got error: %v, want: nil", err)
+		t.Fatalf("got error: %v, want: nil", err)
 	}
 
 	bulkSubscribe()
@@ -404,23 +408,23 @@ func TestSubscription_closeThenRun(t *testing.T) {
 	go func() {
 		length := subscriptionClient.getContext().GetSubscriptionsLength(nil)
 		if length != 2 {
-			(*t).Fatalf("unexpected subscription client. got: %d, want: 2", length)
+			t.Errorf("unexpected subscription client. got: %d, want: 2", length)
+			return
 		}
 
 		waitingLen := subscriptionClient.getContext().GetSubscriptionsLength([]SubscriptionStatus{SubscriptionWaiting})
 		if waitingLen != 2 {
-			(*t).Fatalf("unexpected waiting subscription client. got: %d, want: 2", waitingLen)
+			t.Errorf("unexpected waiting subscription client. got: %d, want: 2", waitingLen)
 		}
 		if err := subscriptionClient.Run(); err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
-			panic(err)
+			t.Errorf("got error: %v, want: nil", err)
 		}
 	}()
 
 	time.Sleep(3 * time.Second)
 	length := subscriptionClient.getContext().GetSubscriptionsLength(nil)
 	if length != 2 {
-		(*t).Fatalf("unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v", length, subscriptionClient.context.subscriptions)
+		t.Fatalf("unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v", length, subscriptionClient.context.subscriptions)
 	}
 	if err := subscriptionClient.Close(); err != nil {
 		t.Fatalf("got error: %v, want: nil", err)

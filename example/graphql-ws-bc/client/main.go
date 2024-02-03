@@ -29,7 +29,9 @@ func main() {
 		}
 	}
 
-	startSubscription(protocol)
+	if err := startSubscription(protocol); err != nil {
+		panic(err)
+	}
 }
 
 const serverEndpoint = "http://localhost:4000"

@@ -416,12 +416,16 @@ func TestUnmarshalGraphQL_unexportedField(t *testing.T) {
 	type query struct {
 		foo *string
 	}
-	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}`), new(query))
+	q := new(query)
+	err := jsonutil.UnmarshalGraphQL([]byte(`{"foo": "bar"}`), q)
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
 	if got, want := err.Error(), "struct field for \"foo\" doesn't exist in any of 1 places to unmarshal"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if q.foo != nil {
+		t.Errorf("expected foo = nil, got: %v", q.foo)
 	}
 }
 

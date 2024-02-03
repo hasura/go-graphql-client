@@ -154,7 +154,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	resp, err := c.httpClient.Do(request)
 
 	if c.debug {
-		reqReader.Seek(0, io.SeekStart)
+		_, _ = reqReader.Seek(0, io.SeekStart)
 	}
 
 	if err != nil {
@@ -206,7 +206,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	err = json.NewDecoder(r).Decode(&out)
 
 	if c.debug {
-		respReader.Seek(0, io.SeekStart)
+		_, _ = respReader.Seek(0, io.SeekStart)
 	}
 
 	if err != nil {
@@ -344,7 +344,7 @@ func (e Error) Error() string {
 func (e Errors) Error() string {
 	b := strings.Builder{}
 	for _, err := range e {
-		b.WriteString(err.Error())
+		_, _ = b.WriteString(err.Error())
 	}
 	return b.String()
 }

@@ -885,7 +885,7 @@ func (sc *SubscriptionClient) reset() {
 			continue
 		}
 		if sub.status == SubscriptionRunning {
-			sc.protocol.Unsubscribe(subContext, sub)
+			_ = sc.protocol.Unsubscribe(subContext, sub)
 		}
 
 		// should restart subscriptions with new id

@@ -137,7 +137,7 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err == nil || err.Error() != "exit" {
-			(*t).Fatalf("got error: %v, want: exit", err)
+			t.Errorf("got error: %v, want: exit", err)
 		}
 		stop <- true
 	}()
@@ -236,7 +236,7 @@ func TestGraphqlWS_SubscriptionRerun(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
+			t.Errorf("got error: %v, want: nil", err)
 		}
 	}()
 
@@ -280,11 +280,11 @@ func TestGraphqlWS_SubscriptionRerun(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	go func() {
 		time.Sleep(2 * time.Second)
-		subscriptionClient.Unsubscribe(subId1)
+		_ = subscriptionClient.Unsubscribe(subId1)
 	}()
 
 	if err := subscriptionClient.Run(); err != nil {
-		(*t).Fatalf("got error: %v, want: nil", err)
+		t.Fatalf("got error: %v, want: nil", err)
 	}
 }
 
@@ -351,7 +351,7 @@ func TestGraphQLWS_OnError(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err == nil || websocket.CloseStatus(err) != 4400 {
-			(*t).Fatalf("got error: %v, want: 4400", err)
+			t.Errorf("got error: %v, want: 4400", err)
 		}
 		stop <- true
 	}()

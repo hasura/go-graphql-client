@@ -183,7 +183,9 @@ func TestTransportWS_basicTest(t *testing.T) {
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer server.Shutdown(ctx)
+	defer func() {
+		_ = server.Shutdown(ctx)
+	}()
 	defer cancel()
 
 	subscriptionClient.
@@ -232,7 +234,7 @@ func TestTransportWS_basicTest(t *testing.T) {
 
 	go func() {
 		if err := subscriptionClient.Run(); err == nil || err.Error() != "exit" {
-			(*t).Fatalf("got error: %v, want: exit", err)
+			t.Errorf("got error: %v, want: exit", err)
 		}
 		stop <- true
 	}()
@@ -279,7 +281,9 @@ func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer server.Shutdown(ctx)
+	defer func() {
+		_ = server.Shutdown(ctx)
+	}()
 	defer cancel()
 
 	subscriptionClient = subscriptionClient.
@@ -392,12 +396,13 @@ func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
 		}
 		err = client.Mutate(context.Background(), &q, variables, OperationName("SayHello"))
 		if err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
+			t.Errorf("got error: %v, want: nil", err)
+			return
 		}
 
 		time.Sleep(2 * time.Second)
-		subscriptionClient.Unsubscribe(subId1)
-		subscriptionClient.Unsubscribe(subId2)
+		_ = subscriptionClient.Unsubscribe(subId1)
+		_ = subscriptionClient.Unsubscribe(subId2)
 	}()
 
 	defer subscriptionClient.Close()
@@ -535,7 +540,8 @@ func TestTransportWS_ResetClient(t *testing.T) {
 		err = client.Mutate(context.Background(), &q, variables, OperationName("InsertUser"))
 
 		if err != nil {
-			(*t).Fatalf("got error: %v, want: nil", err)
+			t.Errorf("got error: %v, want: nil", err)
+			return
 		}
 
 		time.Sleep(2 * time.Second)
@@ -543,32 +549,38 @@ func TestTransportWS_ResetClient(t *testing.T) {
 		// test subscription ids
 		sub1 := subscriptionClient.getContext().GetSubscription(subId1)
 		if sub1 == nil {
-			(*t).Fatalf("subscription 1 not found: %s", subId1)
+			t.Errorf("subscription 1 not found: %s", subId1)
+			return
 		} else {
 			if sub1.key != subId1 {
-				(*t).Fatalf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
+				t.Errorf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
+				return
 			}
 			if sub1.id != subId1 {
-				(*t).Fatalf("subscription id 1 not equal, got %s, want %s", subId1, sub1.id)
+				t.Errorf("subscription id 1 not equal, got %s, want %s", subId1, sub1.id)
+				return
 			}
 		}
 		sub2 := subscriptionClient.getContext().GetSubscription(subId2)
 		if sub2 == nil {
-			(*t).Fatalf("subscription 2 not found: %s", subId2)
+			t.Errorf("subscription 2 not found: %s", subId2)
+			return
 		} else {
 			if sub2.key != subId2 {
-				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
+				t.Errorf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
+				return
 			}
 
 			if sub2.id != subId2 {
-				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.id)
+				t.Errorf("subscription id 2 not equal, got %s, want %s", subId2, sub2.id)
+				return
 			}
 		}
 
 		// reset the subscription
 		log.Printf("resetting the subscription client...")
 		if err := subscriptionClient.Run(); err != nil {
-			(*t).Fatalf("failed to reset the subscription client. got error: %v, want: nil", err)
+			t.Errorf("failed to reset the subscription client. got error: %v, want: nil", err)
 		}
 		log.Printf("the second run was stopped")
 		stop <- true
@@ -580,30 +592,30 @@ func TestTransportWS_ResetClient(t *testing.T) {
 		// test subscription ids
 		sub1 := subscriptionClient.getContext().GetSubscription(subId1)
 		if sub1 == nil {
-			(*t).Fatalf("subscription 1 not found: %s", subId1)
+			t.Errorf("subscription 1 not found: %s", subId1)
 		} else {
 			if sub1.key != subId1 {
-				(*t).Fatalf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
+				t.Errorf("subscription key 1 not equal, got %s, want %s", subId1, sub1.key)
 			}
 			if sub1.id == subId1 {
-				(*t).Fatalf("subscription id 1 should equal, got %s, want %s", subId1, sub1.id)
+				t.Errorf("subscription id 1 should equal, got %s, want %s", subId1, sub1.id)
 			}
 		}
 		sub2 := subscriptionClient.getContext().GetSubscription(subId2)
 		if sub2 == nil {
-			(*t).Fatalf("subscription 2 not found: %s", subId2)
+			t.Errorf("subscription 2 not found: %s", subId2)
 		} else {
 			if sub2.key != subId2 {
-				(*t).Fatalf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
+				t.Errorf("subscription id 2 not equal, got %s, want %s", subId2, sub2.key)
 			}
 
 			if sub2.id == subId2 {
-				(*t).Fatalf("subscription id 2 should equal, got %s, want %s", subId2, sub2.id)
+				t.Errorf("subscription id 2 should equal, got %s, want %s", subId2, sub2.id)
 			}
 		}
 
-		subscriptionClient.Unsubscribe(subId1)
-		subscriptionClient.Unsubscribe(subId2)
+		_ = subscriptionClient.Unsubscribe(subId1)
+		_ = subscriptionClient.Unsubscribe(subId2)
 	}()
 
 	defer subscriptionClient.Close()
@@ -670,7 +682,7 @@ func TestTransportWS_onDisconnected(t *testing.T) {
 
 	// run client
 	go func() {
-		subscriptionClient.Run()
+		_ = subscriptionClient.Run()
 	}()
 	defer subscriptionClient.Close()
 
@@ -754,7 +766,7 @@ func TestTransportWS_OnError(t *testing.T) {
 		err := subscriptionClient.Run()
 
 		if err == nil || err.Error() != unauthorizedErr {
-			(*t).Errorf("got error: %v, want: %s", err, unauthorizedErr)
+			t.Errorf("got error: %v, want: %s", err, unauthorizedErr)
 		}
 		stop <- true
 	}()
