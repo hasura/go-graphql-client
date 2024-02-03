@@ -1063,8 +1063,12 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 
 	options := &websocket.DialOptions{
-		Subprotocols: sc.protocol.GetSubprotocols(),
-		HTTPClient:   sc.websocketOptions.HTTPClient,
+		Subprotocols:         sc.protocol.GetSubprotocols(),
+		HTTPClient:           sc.websocketOptions.HTTPClient,
+		HTTPHeader:           sc.websocketOptions.HTTPHeader,
+		Host:                 sc.websocketOptions.Host,
+		CompressionMode:      sc.websocketOptions.CompressionMode,
+		CompressionThreshold: sc.websocketOptions.CompressionThreshold,
 	}
 
 	c, _, err := websocket.Dial(sc.GetContext(), sc.GetURL(), options)
@@ -1082,5 +1086,26 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 // WebsocketOptions allows implementation agnostic configuration of the websocket client
 type WebsocketOptions struct {
 	// HTTPClient is used for the connection.
+	// Its Transport must return writable bodies for WebSocket handshakes.
+	// http.Transport does beginning with Go 1.12.
 	HTTPClient *http.Client
+
+	// HTTPHeader specifies the HTTP headers included in the handshake request.
+	HTTPHeader http.Header
+
+	// Host optionally overrides the Host HTTP header to send. If empty, the value
+	// of URL.Host will be used.
+	Host string
+
+	// CompressionMode controls the compression mode.
+	// Defaults to CompressionDisabled.
+	//
+	// See docs on CompressionMode for details.
+	CompressionMode websocket.CompressionMode
+
+	// CompressionThreshold controls the minimum size of a message before compression is applied.
+	//
+	// Defaults to 512 bytes for CompressionNoContextTakeover and 128 bytes
+	// for CompressionContextTakeover.
+	CompressionThreshold int
 }
