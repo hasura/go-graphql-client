@@ -22,11 +22,11 @@ jobs:
       checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+        uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.20"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -55,11 +55,13 @@ jobs:
       - name: Run Go unit tests
         run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
       - name: Go coverage format
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           go get github.com/boumenot/gocover-cobertura
           go install github.com/boumenot/gocover-cobertura
           gocover-cobertura < coverage.out > coverage.xml
       - name: Code Coverage Summary Report
+        if: ${{ github.event_name == 'pull_request' }}
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage.xml
@@ -73,7 +75,7 @@ jobs:
           thresholds: "60 80"
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
-        if: ${{ github.event_name == 'pull_request_target' }}
+        if: ${{ github.event_name == 'pull_request' }}
         with:
           path: code-coverage-results.md
       - name: Dump docker logs on failure
