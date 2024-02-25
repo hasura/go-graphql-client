@@ -327,6 +327,7 @@ type Errors []Error
 
 type Error struct {
 	Message    string                 `json:"message"`
+	Err        error                  `json:"-"`
 	Extensions map[string]interface{} `json:"extensions"`
 	Locations  []struct {
 		Line   int `json:"line"`
@@ -340,6 +341,11 @@ func (e Error) Error() string {
 	return fmt.Sprintf("Message: %s, Locations: %+v, Extensions: %+v, Path: %+v", e.Message, e.Locations, e.Extensions, e.Path)
 }
 
+// Unwrap implement the unwrap interface.
+func (e Error) Unwrap() error {
+	return e.Err
+}
+
 // Error implements error interface.
 func (e Errors) Error() string {
 	b := strings.Builder{}
@@ -347,6 +353,15 @@ func (e Errors) Error() string {
 		_, _ = b.WriteString(err.Error())
 	}
 	return b.String()
+}
+
+// Unwrap implements the error unwrap interface.
+func (e Errors) Unwrap() []error {
+	var errs []error
+	for _, err := range e {
+		errs = append(errs, err.Err)
+	}
+	return errs
 }
 
 func (e Error) getInternalExtension() map[string]interface{} {
@@ -364,6 +379,7 @@ func (e Error) getInternalExtension() map[string]interface{} {
 func newError(code string, err error) Error {
 	return Error{
 		Message: err.Error(),
+		Err:     err,
 		Extensions: map[string]interface{}{
 			"code": code,
 		},
