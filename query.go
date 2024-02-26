@@ -140,9 +140,9 @@ func queryArguments(variables map[string]interface{}) string {
 
 	var buf bytes.Buffer
 	for _, k := range keys {
-		io.WriteString(&buf, "$")
-		io.WriteString(&buf, k)
-		io.WriteString(&buf, ":")
+		_, _ = io.WriteString(&buf, "$")
+		_, _ = io.WriteString(&buf, k)
+		_, _ = io.WriteString(&buf, ":")
 		writeArgumentType(&buf, reflect.TypeOf(variables[k]), variables[k], true)
 		// Don't insert a comma here.
 		// Commas in GraphQL are insignificant, and we want minified output.
@@ -168,10 +168,10 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 			graphqlType, ok = reflect.Zero(t).Interface().(GraphQLType)
 		}
 		if ok {
-			io.WriteString(w, graphqlType.GetGraphQLType())
+			_, _ = io.WriteString(w, graphqlType.GetGraphQLType())
 			if value {
 				// Value is a required type, so add "!" to the end.
-				io.WriteString(w, "!")
+				_, _ = io.WriteString(w, "!")
 			}
 			return
 		}
@@ -186,27 +186,27 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 	switch t.Kind() {
 	case reflect.Slice, reflect.Array:
 		// List. E.g., "[Int]".
-		io.WriteString(w, "[")
+		_, _ = io.WriteString(w, "[")
 		writeArgumentType(w, t.Elem(), nil, true)
-		io.WriteString(w, "]")
+		_, _ = io.WriteString(w, "]")
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		io.WriteString(w, "Int")
+		_, _ = io.WriteString(w, "Int")
 	case reflect.Float32, reflect.Float64:
-		io.WriteString(w, "Float")
+		_, _ = io.WriteString(w, "Float")
 	case reflect.Bool:
-		io.WriteString(w, "Boolean")
+		_, _ = io.WriteString(w, "Boolean")
 	default:
 		n := t.Name()
 		if n == "string" {
 			n = "String"
 		}
-		io.WriteString(w, n)
+		_, _ = io.WriteString(w, n)
 	}
 
 	if value {
 		// Value is a required type, so add "!" to the end.
-		io.WriteString(w, "!")
+		_, _ = io.WriteString(w, "!")
 	}
 }
 
@@ -241,7 +241,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			return nil
 		}
 		if !inline {
-			io.WriteString(w, "{")
+			_, _ = io.WriteString(w, "{")
 		}
 		iter := 0
 		for i := 0; i < t.NumField(); i++ {
@@ -252,16 +252,16 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 				continue
 			}
 			if iter != 0 {
-				io.WriteString(w, ",")
+				_, _ = io.WriteString(w, ",")
 			}
 			iter++
 
 			inlineField := f.Anonymous && !ok
 			if !inlineField {
 				if ok {
-					io.WriteString(w, value)
+					_, _ = io.WriteString(w, value)
 				} else {
-					io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
+					_, _ = io.WriteString(w, ident.ParseMixedCaps(f.Name).ToLowerCamelCase())
 				}
 			}
 			// Skip writeQuery if the GraphQL type associated with the filed is scalar
@@ -274,7 +274,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			}
 		}
 		if !inline {
-			io.WriteString(w, "}")
+			_, _ = io.WriteString(w, "}")
 		}
 	case reflect.Slice:
 		if t.Elem().Kind() != reflect.Array {

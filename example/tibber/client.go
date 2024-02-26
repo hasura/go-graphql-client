@@ -16,7 +16,9 @@ const (
 )
 
 func main() {
-	startSubscription()
+	if err := startSubscription(); err != nil {
+		panic(err)
+	}
 }
 
 // the subscription uses the Real time subscription demo

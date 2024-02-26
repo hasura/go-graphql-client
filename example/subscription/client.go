@@ -66,7 +66,7 @@ func startSubscription() error {
 	// automatically unsubscribe after 10 seconds
 	go func() {
 		time.Sleep(10 * time.Second)
-		client.Unsubscribe(subId)
+		_ = client.Unsubscribe(subId)
 	}()
 
 	return client.Run()

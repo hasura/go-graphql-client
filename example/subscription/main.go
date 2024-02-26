@@ -8,5 +8,7 @@ package main
 func main() {
 	go startServer()
 	go startSendHello()
-	startSubscription()
+	if err := startSubscription(); err != nil {
+		panic(err)
+	}
 }

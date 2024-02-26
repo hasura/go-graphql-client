@@ -571,6 +571,16 @@ client := graphql.NewSubscriptionClient("wss://example.com/graphql").
 	})
 ```
 
+Some servers validate custom auth tokens on the header instead. To authenticate with headers, use `WebsocketOptions`:
+
+```go
+client := graphql.NewSubscriptionClient(serverEndpoint).
+    WithWebSocketOptions(graphql.WebsocketOptions{
+        HTTPHeader: http.Header{
+            "Authorization": []string{"Bearer random-secret"},
+        },
+    })
+``` 
 
 #### Options
 

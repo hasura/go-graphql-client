@@ -60,7 +60,7 @@ func TestClient_Query_partialDataWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[], Path: [node2]"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 
@@ -110,7 +110,7 @@ func TestClient_Query_partialDataRawQueryWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil\n")
 	}
-	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Could not resolve to a node with the global id of 'NotExist', Locations: [{Line:10 Column:4}], Extensions: map[], Path: [node2]"; got != want {
 		t.Errorf("got error: %v, want: %v\n", got, want)
 	}
 	if q.Node1 == nil || string(q.Node1) != `{"id":"MDEyOklzc3VlQ29tbWVudDE2OTQwNzk0Ng=="}` {
@@ -165,7 +165,7 @@ func TestClient_Query_noDataWithErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), "Message: Field 'user' is missing required arguments: login, Locations: [{Line:7 Column:3}], Extensions: map[]"; got != want {
+	if got, want := err.Error(), "Message: Field 'user' is missing required arguments: login, Locations: [{Line:7 Column:3}], Extensions: map[], Path: []"; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
@@ -215,7 +215,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error]`; got != want {
+	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
@@ -241,6 +241,63 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	}
 	gqlErr = err.(graphql.Errors)
 	if got, want := gqlErr[0].Message, `500 Internal Server Error; body: "important message\n"`; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	interErr := gqlErr[0].Extensions["internal"].(map[string]interface{})
+
+	if got, want := interErr["request"].(map[string]interface{})["body"], "{\"query\":\"{user{name}}\"}\n"; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+}
+
+func TestClient_Query_requestError(t *testing.T) {
+	want := errors.New("bad error")
+	client := graphql.NewClient("/graphql", &http.Client{Transport: errorRoundTripper{err: want}})
+
+	var q struct {
+		User struct {
+			Name string
+		}
+	}
+	err := client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+	if got, want := err.Error(), `Message: Post "/graphql": bad error, Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if q.User.Name != "" {
+		t.Errorf("got non-empty q.User.Name: %v", q.User.Name)
+	}
+	if got := err; !errors.Is(got, want) {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+
+	gqlErr := err.(graphql.Errors)
+	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if _, ok := gqlErr[0].Extensions["internal"]; ok {
+		t.Errorf("expected empty internal error")
+	}
+	if got := gqlErr[0]; !errors.Is(err, want) {
+		t.Errorf("got error: %v, want %v", got, want)
+	}
+
+	// test internal error data
+	client = client.WithDebug(true)
+	err = client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+	if !errors.As(err, &graphql.Errors{}) {
+		t.Errorf("the error type should be graphql.Errors")
+	}
+	gqlErr = err.(graphql.Errors)
+	if got, want := gqlErr[0].Message, `Post "/graphql": bad error`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
@@ -423,6 +480,16 @@ func (l localRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	w := httptest.NewRecorder()
 	l.handler.ServeHTTP(w, req)
 	return w.Result(), nil
+}
+
+// errorRoundTripper is an http.RoundTripper that always returns the supplied
+// error.
+type errorRoundTripper struct {
+	err error
+}
+
+func (e errorRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, e.err
 }
 
 func mustRead(r io.Reader) string {

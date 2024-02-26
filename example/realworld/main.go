@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
-	"net/http"
-	"net/http/httptest"
 	"os"
 
 	graphql "github.com/hasura/go-graphql-client"
@@ -60,16 +58,4 @@ func print(v interface{}) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-// localRoundTripper is an http.RoundTripper that executes HTTP transactions
-// by using handler directly, instead of going over an HTTP connection.
-type localRoundTripper struct {
-	handler http.Handler
-}
-
-func (l localRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	w := httptest.NewRecorder()
-	l.handler.ServeHTTP(w, req)
-	return w.Result(), nil
 }

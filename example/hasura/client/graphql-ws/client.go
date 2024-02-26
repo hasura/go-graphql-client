@@ -20,7 +20,9 @@ const (
 
 func main() {
 	go insertUsers()
-	startSubscription()
+	if err := startSubscription(); err != nil {
+		panic(err)
+	}
 }
 
 func startSubscription() error {

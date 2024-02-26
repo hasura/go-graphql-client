@@ -1,0 +1,15 @@
+module github.com/hasura/go-graphql-client/example/graphqldev
+
+go 1.20
+
+require (
+	github.com/graph-gophers/graphql-go v1.5.0
+	github.com/hasura/go-graphql-client v0.11.0
+)
+
+require (
+	github.com/google/uuid v1.6.0 // indirect
+	nhooyr.io/websocket v1.8.10 // indirect
+)
+
+replace github.com/hasura/go-graphql-client => ../../

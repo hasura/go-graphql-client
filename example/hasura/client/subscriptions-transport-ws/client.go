@@ -19,7 +19,9 @@ const (
 
 func main() {
 	go insertUsers()
-	startSubscription()
+	if err := startSubscription(); err != nil {
+		panic(err)
+	}
 }
 
 func startSubscription() error {
@@ -73,7 +75,7 @@ func startSubscription() error {
 	// automatically unsubscribe after 10 seconds
 	go func() {
 		time.Sleep(10 * time.Second)
-		client.Unsubscribe(subId)
+		_ = client.Unsubscribe(subId)
 	}()
 
 	return client.Run()
