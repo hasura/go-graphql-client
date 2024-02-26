@@ -327,13 +327,13 @@ type Errors []Error
 
 type Error struct {
 	Message    string                 `json:"message"`
-	Err        error                  `json:"-"`
 	Extensions map[string]interface{} `json:"extensions"`
 	Locations  []struct {
 		Line   int `json:"line"`
 		Column int `json:"column"`
 	} `json:"locations"`
 	Path []interface{} `json:"path"`
+	err  error
 }
 
 // Error implements error interface.
@@ -343,7 +343,7 @@ func (e Error) Error() string {
 
 // Unwrap implement the unwrap interface.
 func (e Error) Unwrap() error {
-	return e.Err
+	return e.err
 }
 
 // Error implements error interface.
@@ -359,7 +359,7 @@ func (e Errors) Error() string {
 func (e Errors) Unwrap() []error {
 	var errs []error
 	for _, err := range e {
-		errs = append(errs, err.Err)
+		errs = append(errs, err.err)
 	}
 	return errs
 }
@@ -379,10 +379,10 @@ func (e Error) getInternalExtension() map[string]interface{} {
 func newError(code string, err error) Error {
 	return Error{
 		Message: err.Error(),
-		Err:     err,
 		Extensions: map[string]interface{}{
 			"code": code,
 		},
+		err: err,
 	}
 }
 

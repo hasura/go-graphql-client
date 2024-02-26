@@ -283,7 +283,7 @@ func TestClient_Query_requestError(t *testing.T) {
 	if _, ok := gqlErr[0].Extensions["internal"]; ok {
 		t.Errorf("expected empty internal error")
 	}
-	if got := gqlErr[0].Err; !errors.Is(err, want) {
+	if got := gqlErr[0]; !errors.Is(err, want) {
 		t.Errorf("got error: %v, want %v", got, want)
 	}
 
