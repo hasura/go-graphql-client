@@ -408,6 +408,11 @@ func (sc *SubscriptionClient) GetContext() context.Context {
 	return sc.getContext().GetContext()
 }
 
+// GetSubscription get the subscription state by id
+func (sc *SubscriptionClient) GetSubscription(id string) *Subscription {
+	return sc.getContext().GetSubscription(id)
+}
+
 // WithWebSocket replaces customized websocket client constructor
 // In default, subscription client uses https://github.com/nhooyr/websocket
 func (sc *SubscriptionClient) WithWebSocket(fn func(sc *SubscriptionClient) (WebsocketConn, error)) *SubscriptionClient {

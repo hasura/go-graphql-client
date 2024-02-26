@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"testing"
 	"time"
@@ -75,6 +76,16 @@ func waitService(endpoint string, timeoutSecs int) error {
 		return fmt.Errorf(string(body))
 	}
 	return errors.New("unknown error")
+}
+
+func randomID() string {
+	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+	b := make([]rune, 16)
+	for i := range b {
+		b[i] = letter[rand.Intn(len(letter))]
+	}
+	return string(b)
 }
 
 func waitHasuraService(timeoutSecs int) error {
