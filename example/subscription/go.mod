@@ -1,6 +1,6 @@
 module github.com/hasura/go-graphql-client/example/subscription
 
-go 1.20.0
+go 1.20
 
 require (
 	github.com/graph-gophers/graphql-go v1.5.0
