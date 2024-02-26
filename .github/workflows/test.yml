@@ -52,6 +52,11 @@ jobs:
           version: latest
           only-new-issues: true
           skip-cache: false
+      - name: Run Go unit tests for example/subscription
+        run: |
+          cd example/subscription
+          go get -t -v ./...
+          go test -v -race -timeout 3m ./...
       - name: Run Go unit tests
         run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
       - name: Go coverage format
