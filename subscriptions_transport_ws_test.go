@@ -204,7 +204,7 @@ func TestSubscription_closeThenRun(t *testing.T) {
 	bulkSubscribe()
 
 	go func() {
-		length := subscriptionClient.getContext().GetSubscriptionsLength(nil)
+		length := len(subscriptionClient.GetSubscriptions())
 		if length != 2 {
 			t.Errorf("unexpected subscription client. got: %d, want: 2", length)
 			return
@@ -220,7 +220,7 @@ func TestSubscription_closeThenRun(t *testing.T) {
 	}()
 
 	time.Sleep(3 * time.Second)
-	length := subscriptionClient.getContext().GetSubscriptionsLength(nil)
+	length := len(subscriptionClient.GetSubscriptions())
 	if length != 2 {
 		t.Fatalf("unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v", length, subscriptionClient.context.subscriptions)
 	}

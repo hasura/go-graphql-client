@@ -47,11 +47,14 @@ jobs:
           cd ./example/hasura
           docker-compose up -d
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           only-new-issues: true
-          skip-cache: false
+          skip-cache: true
+          skip-pkg-cache: true
+          skip-build-cache: true
+          args: --timeout=120s
       - name: Run Go unit tests for example/subscription
         run: |
           cd example/subscription

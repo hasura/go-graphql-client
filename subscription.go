@@ -408,6 +408,11 @@ func (sc *SubscriptionClient) GetContext() context.Context {
 	return sc.getContext().GetContext()
 }
 
+// GetSubscriptions get the list of active subscriptions
+func (sc *SubscriptionClient) GetSubscriptions() map[string]Subscription {
+	return sc.getContext().GetSubscriptions()
+}
+
 // GetSubscription get the subscription state by id
 func (sc *SubscriptionClient) GetSubscription(id string) *Subscription {
 	return sc.getContext().GetSubscription(id)
