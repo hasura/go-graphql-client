@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/hasura/go-graphql-client"
 )
@@ -467,6 +469,138 @@ func TestClient_Exec_QueryRaw(t *testing.T) {
 
 	if got, want := q.User.Name, "Gopher"; got != want {
 		t.Errorf("got q.User.Name: %q, want: %q", got, want)
+	}
+}
+
+// Issue: https://github.com/hasura/go-graphql-client/issues/139
+func TestUnmarshalGraphQL_unionSlice(t *testing.T) {
+
+	expectedQuery := `query($cursor0: String, $searchQuery: String!) {
+		search(type: ISSUE, query: $searchQuery, first: 100, after: $cursor0) {
+			pageInfo {
+				endCursor
+				hasNextPage
+			}
+			nodes {
+				... on Issue {
+					number
+					id
+					createdAt
+					updatedAt
+					state
+					stateReason
+					closedAt
+					author {
+						login
+					}
+					authorAssociation
+					title
+					body
+				}
+			}
+		}`
+
+	type PageInfo struct {
+		EndCursor   string
+		HasNextPage bool
+	}
+
+	type issue struct {
+		Number      int64
+		ID          string
+		CreatedAt   time.Time
+		UpdatedAt   time.Time
+		State       string
+		StateReason *string
+		ClosedAt    *time.Time
+		Author      struct {
+			Login string
+		}
+		AuthorAssociation string
+		Title             string
+		Body              string
+	}
+
+	type querySearch struct {
+		PageInfo PageInfo
+		Nodes    []issue
+	}
+
+	type queryIssues struct {
+		// arguments
+		repoSlug string `json:"-"`
+		// results
+		Search querySearch
+	}
+
+	want := queryIssues{
+		Search: querySearch{
+			PageInfo: PageInfo{
+				EndCursor:   "Y3Vyc29yOjE=",
+				HasNextPage: false,
+			},
+			Nodes: []issue{
+				{
+					Number:    32,
+					ID:        "I_kwDOJBmYg86J6maD",
+					CreatedAt: time.Date(2024, 05, 23, 21, 03, 9, 0, time.UTC),
+					UpdatedAt: time.Date(2024, 05, 28, 15, 42, 2, 0, time.UTC),
+					State:     "OPEN",
+					Author: struct{ Login string }{
+						Login: "drewAdorno",
+					},
+					AuthorAssociation: "NONE",
+					Title:             "subdomains not redirecting",
+					Body:              "Hi,\r\nI was able to configure and successfully use localias in was wsl env (ubuntu 22.04)",
+				},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{
+			"data": {
+				"search": {
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOjE=",
+						"hasNextPage": false
+					},
+					"nodes": [
+						{
+							"number": 32,
+							"id": "I_kwDOJBmYg86J6maD",
+							"createdAt": "2024-05-23T21:03:09Z",
+							"updatedAt": "2024-05-28T15:42:02Z",
+							"state": "OPEN",
+							"stateReason": null,
+							"closedAt": null,
+							"author": {
+								"login": "drewAdorno"
+							},
+							"authorAssociation": "NONE",
+							"title": "subdomains not redirecting",
+							"body": "Hi,\r\nI was able to configure and successfully use localias in was wsl env (ubuntu 22.04)"
+						}
+					]
+				}
+			}
+		}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var got queryIssues
+	err := client.Exec(context.Background(), expectedQuery, &got, map[string]interface{}{
+		"searchQuery": "test",
+		"cursor0":     "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("got %+v, want: %+v", got, want)
 	}
 }
 
