@@ -527,8 +527,6 @@ func TestUnmarshalGraphQL_unionSlice(t *testing.T) {
 	}
 
 	type queryIssues struct {
-		// arguments
-		repoSlug string `json:"-"`
 		// results
 		Search querySearch
 	}
