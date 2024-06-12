@@ -13,7 +13,7 @@ on:
 jobs:
   test-go:
     name: Run Go lint and unit tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       # Required: allow read access to the content for analysis.
@@ -47,7 +47,7 @@ jobs:
           cd ./example/hasura
           docker-compose up -d
       - name: Lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           only-new-issues: true
