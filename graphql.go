@@ -178,8 +178,11 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		err := newError(ErrRequestError, fmt.Errorf("%v; body: %q", resp.Status, body))
+		err := newError(ErrRequestError, ErrResponseStatusNotOK{
+			body:       resp.Body,
+			status:     resp.Status,
+			statusCode: resp.StatusCode,
+		})
 
 		if c.debug {
 			err = err.withRequest(request, reqReader)
@@ -384,6 +387,28 @@ func newError(code string, err error) Error {
 		},
 		err: err,
 	}
+}
+
+type ErrResponseStatusNotOK struct {
+	body       io.ReadCloser
+	status     string
+	statusCode int
+}
+
+func (e ErrResponseStatusNotOK) Error() string {
+	return fmt.Sprintf("non-200 OK status code: %s", e.status)
+}
+
+func (e ErrResponseStatusNotOK) Body() io.ReadCloser {
+	return e.body
+}
+
+func (e ErrResponseStatusNotOK) Status() string {
+	return e.status
+}
+
+func (e ErrResponseStatusNotOK) StatusCode() int {
+	return e.statusCode
 }
 
 func (e Error) withRequest(req *http.Request, bodyReader io.Reader) Error {
