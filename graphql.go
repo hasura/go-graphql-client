@@ -178,9 +178,8 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		err := newError(ErrRequestError, ErrResponseStatusNotOK{
-			body:       resp.Body,
-			status:     resp.Status,
+		err := newError(ErrRequestError, NetworkError{
+			message:    "non-200 OK status code",
 			statusCode: resp.StatusCode,
 		})
 
@@ -389,25 +388,16 @@ func newError(code string, err error) Error {
 	}
 }
 
-type ErrResponseStatusNotOK struct {
-	body       io.ReadCloser
-	status     string
+type NetworkError struct {
+	message    string
 	statusCode int
 }
 
-func (e ErrResponseStatusNotOK) Error() string {
-	return fmt.Sprintf("non-200 OK status code: %s", e.status)
+func (e NetworkError) Error() string {
+	return fmt.Sprintf("%d %s: %s", e.statusCode, http.StatusText(e.statusCode), e.message)
 }
 
-func (e ErrResponseStatusNotOK) Body() io.ReadCloser {
-	return e.body
-}
-
-func (e ErrResponseStatusNotOK) Status() string {
-	return e.status
-}
-
-func (e ErrResponseStatusNotOK) StatusCode() int {
+func (e NetworkError) StatusCode() int {
 	return e.statusCode
 }
 
