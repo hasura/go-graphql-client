@@ -40,7 +40,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 		- [Execute pre-built query](#execute-pre-built-query)
 		- [With operation name (deprecated)](#with-operation-name-deprecated)
 		- [Raw bytes response](#raw-bytes-response)
-		- [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
+		- [Dynamic query builder](#dynamic-query-builder)
 		- [Debugging and Unit test](#debugging-and-unit-test)
 	- [Directories](#directories)
 	- [References](#references)
@@ -844,42 +844,70 @@ func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, 
 func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) ([]byte, error)
 ```
 
-### Multiple mutations with ordered map
+### Dynamic query builder
 
-You might need to make multiple mutations in single query. It's not very convenient with structs
-so you can use ordered map `[][2]interface{}` instead.
+You might need to dynamically multiple queries or mutations in a request. It isn't convenient with static structures.
+`Builder` helps us construct many queries flexibly.
 
 For example, to make the following GraphQL mutation:
 
 ```GraphQL
-mutation($login1: String!, $login2: String!, $login3: String!) {
-	createUser(login: $login1) { login }
-	createUser(login: $login2) { login }
-	createUser(login: $login3) { login }
+query($userId: String!, $disabled: Boolean!, $limit: Int!) {
+	userByPk(userId: $userId) { id name }
+	groups(disabled: $disabled) { id user_permissions }
+	topUsers: users(limit: $limit) { id name }
 }
-variables {
-	"login1": "grihabor",
-	"login2": "diman",
-	"login3": "indigo"
-}
+
+# variables {
+# 	"userId": "1",
+# 	"disabled": false,
+# 	"limit": 5
+# }
 ```
 
 You can define:
 
 ```Go
-type CreateUser struct {
-	Login string
+type User struct {
+	ID string
+	Name string
 }
-m := [][2]interface{}{
-	{"createUser(login: $login1)", &CreateUser{}},
-	{"createUser(login: $login2)", &CreateUser{}},
-	{"createUser(login: $login3)", &CreateUser{}},
+
+var groups []struct {
+	ID string
+	Permissions []string `graphql:"user_permissions"`
 }
-variables := map[string]interface{}{
-	"login1": "grihabor",
-	"login2": "diman",
-	"login3": "indigo",
+
+var userByPk User
+var topUsers []User
+
+builder := graphql.NewBuilder().
+	Query("userByPk(userId: $userId)", &userByPk).
+	Query("groups(disabled: $disabled)", &groups).
+	Query("topUsers: users(limit: $limit)", &topUsers).
+	Variables(map[string]interface{}{
+		"userId": 1,
+		"disabled": false,
+		"limit": 5,
+	})
+
+query, variables, err := builder.Build()
+if err != nil {
+	return err
 }
+
+err = client.Query(context.Background(), query, variables)
+if err != nil {
+	return err
+}
+
+// or use Query / Mutate shortcut methods
+err = builder.Query(client)
+if err != nil {
+	return err
+}
+
+
 ```
 
 ### Debugging and Unit test

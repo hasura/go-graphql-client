@@ -360,6 +360,9 @@ func (d *decoder) popAllVs() {
 func (d *decoder) popLeftArrayTemplates() {
 	for i := range d.vs {
 		v := d.vs[i].Top()
+		for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+			v = v.Elem()
+		}
 		if v.IsValid() {
 			v.Set(v.Slice(1, v.Len()))
 		}
