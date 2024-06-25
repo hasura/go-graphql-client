@@ -215,7 +215,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
+	if got, want := err.Error(), `Message: 500 Internal Server Error, Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
@@ -240,7 +240,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 		t.Errorf("the error type should be graphql.Errors")
 	}
 	gqlErr = err.(graphql.Errors)
-	if got, want := gqlErr[0].Message, `500 Internal Server Error; body: "important message\n"`; got != want {
+	if got, want := gqlErr[0].Message, `500 Internal Server Error`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
