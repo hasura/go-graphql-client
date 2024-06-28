@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -370,8 +371,7 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 
 	var lock sync.Mutex
 	subscriptionResults := []gql.Subscription{}
-	wasConnected := false
-	wasDisconnected := false
+	var wasConnected, wasDisconnected int32
 	addResult := func(s gql.Subscription) int {
 		lock.Lock()
 		defer lock.Unlock()
@@ -436,20 +436,16 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		WithTimeout(3 * time.Second).
 		WithSyncMode(syncMode).
 		OnConnected(func() {
-			lock.Lock()
-			defer lock.Unlock()
 			log.Println("connected")
-			wasConnected = true
+			atomic.StoreInt32(&wasConnected, 1)
 		}).
 		OnError(func(sc *gql.SubscriptionClient, err error) error {
 			t.Fatalf("got error: %v, want: nil", err)
 			return err
 		}).
 		OnDisconnected(func() {
-			lock.Lock()
-			defer lock.Unlock()
 			log.Println("disconnected")
-			wasDisconnected = true
+			atomic.StoreInt32(&wasDisconnected, 1)
 		}).
 		OnSubscriptionComplete(func(s gql.Subscription) {
 			log.Println("OnSubscriptionComplete: ", s)
@@ -542,10 +538,10 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		}
 	}
 
-	if !wasConnected {
+	if atomic.LoadInt32(&wasConnected) != 1 {
 		t.Fatalf("expected OnConnected event, got none")
 	}
-	if !wasDisconnected {
+	if atomic.LoadInt32(&wasDisconnected) != 1 {
 		t.Fatalf("expected OnDisconnected event, got none")
 	}
 }
