@@ -116,11 +116,12 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
 	}
 
-	return c.request(ctx, query, variables, optionOutput)
+	data, _, resp, respBuf, errs := c.request(ctx, query, variables, optionOutput)
+	return data, resp, respBuf, errs
 }
 
 // Request the common method that send graphql request
-func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options *constructOptionsOutput) ([]byte, *http.Response, io.Reader, Errors) {
+func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options *constructOptionsOutput) ([]byte, map[string][]byte, *http.Response, io.Reader, Errors) {
 	in := GraphQLRequestPayload{
 		Query:     query,
 		Variables: variables,
@@ -133,7 +134,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(in)
 	if err != nil {
-		return nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
+		return nil, nil, nil, nil, Errors{newError(ErrGraphQLEncode, err)}
 	}
 
 	reqReader := bytes.NewReader(buf.Bytes())
@@ -143,7 +144,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 		if c.debug {
 			e = e.withRequest(request, reqReader)
 		}
-		return nil, nil, nil, Errors{e}
+		return nil, nil, nil, nil, Errors{e}
 	}
 	request.Header.Add("Content-Type", "application/json")
 
@@ -162,7 +163,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 		if c.debug {
 			e = e.withRequest(request, reqReader)
 		}
-		return nil, nil, nil, Errors{e}
+		return nil, nil, nil, nil, Errors{e}
 	}
 	defer resp.Body.Close()
 
@@ -171,7 +172,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		gr, err := gzip.NewReader(r)
 		if err != nil {
-			return nil, nil, nil, Errors{newError(ErrJsonDecode, fmt.Errorf("problem trying to create gzip reader: %w", err))}
+			return nil, nil, nil, nil, Errors{newError(ErrJsonDecode, fmt.Errorf("problem trying to create gzip reader: %w", err))}
 		}
 		defer gr.Close()
 		r = gr
@@ -187,12 +188,13 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 		if c.debug {
 			err = err.withRequest(request, reqReader)
 		}
-		return nil, nil, nil, Errors{err}
+		return nil, nil, nil, nil, Errors{err}
 	}
 
 	var out struct {
-		Data   *json.RawMessage
-		Errors Errors
+		Data       *json.RawMessage
+		Extensions map[string]*json.RawMessage
+		Errors     Errors
 	}
 
 	// copy the response reader for debugging
@@ -200,7 +202,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 	if c.debug {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, nil, Errors{newError(ErrJsonDecode, err)}
+			return nil, nil, nil, nil, Errors{newError(ErrJsonDecode, err)}
 		}
 		respReader = bytes.NewReader(body)
 		r = io.NopCloser(respReader)
@@ -218,12 +220,24 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 			we = we.withRequest(request, reqReader).
 				withResponse(resp, respReader)
 		}
-		return nil, nil, nil, Errors{we}
+		return nil, nil, nil, nil, Errors{we}
 	}
 
 	var rawData []byte
 	if out.Data != nil && len(*out.Data) > 0 {
 		rawData = []byte(*out.Data)
+	}
+
+	var extensions map[string][]byte
+	if out.Extensions != nil {
+		extensions = make(map[string][]byte, len(out.Extensions))
+		for k, v := range out.Extensions {
+			if v != nil {
+				extensions[k] = []byte(*v)
+			} else {
+				extensions[k] = nil
+			}
+		}
 	}
 
 	if len(out.Errors) > 0 {
@@ -233,10 +247,10 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 				withResponse(resp, respReader)
 		}
 
-		return rawData, resp, respReader, out.Errors
+		return rawData, extensions, resp, respReader, out.Errors
 	}
 
-	return rawData, resp, respReader, nil
+	return rawData, extensions, resp, respReader, nil
 }
 
 // do executes a single GraphQL operation.
@@ -263,7 +277,7 @@ func (c *Client) Exec(ctx context.Context, query string, v interface{}, variable
 		return err
 	}
 
-	data, resp, respBuf, errs := c.request(ctx, query, variables, optionsOutput)
+	data, _, resp, respBuf, errs := c.request(ctx, query, variables, optionsOutput)
 	return c.processResponse(v, data, resp, respBuf, errs)
 }
 
@@ -275,11 +289,27 @@ func (c *Client) ExecRaw(ctx context.Context, query string, variables map[string
 		return nil, err
 	}
 
-	data, _, _, errs := c.request(ctx, query, variables, optionsOutput)
+	data, _, _, _, errs := c.request(ctx, query, variables, optionsOutput)
 	if len(errs) > 0 {
 		return data, errs
 	}
 	return data, nil
+}
+
+// Executes a pre-built query and returns the raw json message and a map with extensions (values also as raw json objects). Unlike the
+// Query method you have to specify in the query the fields that you want to receive as they are not inferred from the interface. This method
+// is useful if you need to build the query dynamically.
+func (c *Client) ExecRawWithExtensions(ctx context.Context, query string, variables map[string]interface{}, options ...Option) ([]byte, map[string][]byte, error) {
+	optionsOutput, err := constructOptions(options)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	data, ext, _, _, errs := c.request(ctx, query, variables, optionsOutput)
+	if len(errs) > 0 {
+		return data, ext, errs
+	}
+	return data, ext, nil
 }
 
 func (c *Client) processResponse(v interface{}, data []byte, resp *http.Response, respBuf io.Reader, errs Errors) error {

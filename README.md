@@ -818,6 +818,23 @@ if err != nil {
 err = json.Unmarshal(raw, &res)
 ```
 
+Additionally, if you need information about the extensions returned in the response use `ExecRawWithExtensions`. This function returns a map with extensions as the second variable.
+
+```Go
+query := `query{something(where: { foo: { _eq: "bar" }}){id}}`
+var res struct {
+	Somethings []Something `json:"something"`
+}
+
+data, extensions, err := client.ExecRawWithExtensions(ctx, query, map[string]any{})
+if err != nil {
+	panic(err)
+}
+
+// You can now use the `extensions` variable to access the extensions data
+fmt.Println("Extensions:", extensions)
+```
+
 ### With operation name (deprecated)
 
 Operation name is still on API decision plan https://github.com/shurcooL/graphql/issues/12. However, in my opinion separate methods are easier choice to avoid breaking changes
