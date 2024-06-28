@@ -822,9 +822,6 @@ Additionally, if you need information about the extensions returned in the respo
 
 ```Go
 query := `query{something(where: { foo: { _eq: "bar" }}){id}}`
-var res struct {
-	Somethings []Something `json:"something"`
-}
 
 data, extensions, err := client.ExecRawWithExtensions(ctx, query, map[string]any{})
 if err != nil {

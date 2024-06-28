@@ -121,7 +121,7 @@ func (c *Client) buildAndRequest(ctx context.Context, op operationType, v interf
 }
 
 // Request the common method that send graphql request
-func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options *constructOptionsOutput) ([]byte, map[string][]byte, *http.Response, io.Reader, Errors) {
+func (c *Client) request(ctx context.Context, query string, variables map[string]interface{}, options *constructOptionsOutput) ([]byte, []byte, *http.Response, io.Reader, Errors) {
 	in := GraphQLRequestPayload{
 		Query:     query,
 		Variables: variables,
@@ -193,7 +193,7 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 
 	var out struct {
 		Data       *json.RawMessage
-		Extensions map[string]*json.RawMessage
+		Extensions *json.RawMessage
 		Errors     Errors
 	}
 
@@ -228,16 +228,9 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 		rawData = []byte(*out.Data)
 	}
 
-	var extensions map[string][]byte
-	if out.Extensions != nil {
-		extensions = make(map[string][]byte, len(out.Extensions))
-		for k, v := range out.Extensions {
-			if v != nil {
-				extensions[k] = []byte(*v)
-			} else {
-				extensions[k] = nil
-			}
-		}
+	var extensions []byte
+	if out.Extensions != nil && len(*out.Extensions) > 0 {
+		extensions = []byte(*out.Extensions)
 	}
 
 	if len(out.Errors) > 0 {
@@ -299,7 +292,7 @@ func (c *Client) ExecRaw(ctx context.Context, query string, variables map[string
 // Executes a pre-built query and returns the raw json message and a map with extensions (values also as raw json objects). Unlike the
 // Query method you have to specify in the query the fields that you want to receive as they are not inferred from the interface. This method
 // is useful if you need to build the query dynamically.
-func (c *Client) ExecRawWithExtensions(ctx context.Context, query string, variables map[string]interface{}, options ...Option) ([]byte, map[string][]byte, error) {
+func (c *Client) ExecRawWithExtensions(ctx context.Context, query string, variables map[string]interface{}, options ...Option) ([]byte, []byte, error) {
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
 		return nil, nil, err
