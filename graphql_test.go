@@ -480,7 +480,7 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 			t.Errorf("got body: %v, want %v", got, want)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"domain": "users", "database": {"id": 1, "name": "users_db"}}"}`)
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"domain": "users", "database": {"id": 1, "name": "users_db"}}}`)
 	})
 	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
 
