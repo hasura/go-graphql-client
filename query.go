@@ -16,6 +16,7 @@ import (
 type constructOptionsOutput struct {
 	operationName       string
 	operationDirectives []string
+	extensions          any
 }
 
 func (coo constructOptionsOutput) OperationDirectivesString() string {
@@ -30,13 +31,21 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 	output := &constructOptionsOutput{}
 
 	for _, option := range options {
-		switch option.Type() {
-		case optionTypeOperationName:
-			output.operationName = option.String()
-		case OptionTypeOperationDirective:
-			output.operationDirectives = append(output.operationDirectives, option.String())
+		switch opt := option.(type) {
+		case operationNameOption:
+			output.operationName = opt.name
+		case bindExtensionsOption:
+			output.extensions = opt.value
 		default:
-			return nil, fmt.Errorf("invalid query option type: %s", option.Type())
+			if opt.Type() != OptionTypeOperationDirective {
+				return nil, fmt.Errorf("invalid query option type: %s", option.Type())
+			}
+			if d, ok := option.(fmt.Stringer); ok {
+				output.operationDirectives = append(output.operationDirectives, d.String())
+			} else {
+				return nil, fmt.Errorf("please implement the fmt.Stringer interface for %s option", OptionTypeOperationDirective)
+			}
+
 		}
 	}
 
@@ -234,7 +243,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		}
 	case reflect.Struct:
 		// If the type implements json.Unmarshaler, it's a scalar. Don't expand it.
-		if reflect.PtrTo(t).Implements(jsonUnmarshaler) {
+		if reflect.PointerTo(t).Implements(jsonUnmarshaler) {
 			return nil
 		}
 		if t.AssignableTo(idType) {

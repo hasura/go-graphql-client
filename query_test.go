@@ -342,13 +342,15 @@ func TestConstructQuery(t *testing.T) {
 			want: `{viewer{login,databaseId}}`,
 		},
 	}
-	for _, tc := range tests {
-		got, err := ConstructQuery(tc.inV, tc.inVariables, tc.options...)
-		if err != nil {
-			t.Error(err)
-		} else if got != tc.want {
-			t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
-		}
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			got, err := ConstructQuery(tc.inV, tc.inVariables, tc.options...)
+			if err != nil {
+				t.Error(err)
+			} else if got != tc.want {
+				t.Errorf("\ngot:  %q\nwant: %q\n", got, tc.want)
+			}
+		})
 	}
 }
 

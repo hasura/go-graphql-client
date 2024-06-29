@@ -470,6 +470,56 @@ func TestClient_Exec_QueryRaw(t *testing.T) {
 	}
 }
 
+func TestClient_BindExtensions(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"id": 1, "domain": "users"}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var q struct {
+		User struct {
+			ID   string `graphql:"id"`
+			Name string `graphql:"name"`
+		}
+	}
+
+	var ext struct {
+		ID     int    `json:"id"`
+		Domain string `json:"domain"`
+	}
+
+	err := client.Query(context.Background(), &q, map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Fatalf("got q.User.Name: %q, want: %q", got, want)
+	}
+
+	err = client.Query(context.Background(), &q, map[string]interface{}{}, graphql.BindExtensions(&ext))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Fatalf("got q.User.Name: %q, want: %q", got, want)
+	}
+
+	if got, want := ext.ID, 1; got != want {
+		t.Errorf("got ext.ID: %q, want: %q", got, want)
+	}
+	if got, want := ext.Domain, "users"; got != want {
+		t.Errorf("got ext.Domain: %q, want: %q", got, want)
+	}
+}
+
 // Test exec pre-built query, return raw json string and map
 // with extensions
 func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
@@ -485,8 +535,8 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
 
 	var ext struct {
-		ID     int    `graphql:"id"`
-		Domain string `graphql:"domain"`
+		ID     int    `json:"id"`
+		Domain string `json:"domain"`
 	}
 
 	_, extensions, err := client.ExecRawWithExtensions(context.Background(), "{user{id,name}}", map[string]interface{}{})
