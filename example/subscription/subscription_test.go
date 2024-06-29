@@ -538,6 +538,9 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		}
 	}
 
+	// workaround for race condition
+	time.Sleep(time.Second)
+
 	if atomic.LoadInt32(&wasConnected) != 1 {
 		t.Fatalf("expected OnConnected event, got none")
 	}
