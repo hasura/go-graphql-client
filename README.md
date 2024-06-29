@@ -4,13 +4,13 @@
 
 **Preface:** This is a fork of `https://github.com/shurcooL/graphql` with extended features (subscription client, named operation)
 
-The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using websocket protocol with https://github.com/nhooyr/websocket, a minimal and idiomatic WebSocket library for Go.
+The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using WebSocket protocol with https://github.com/nhooyr/websocket, a minimal and idiomatic WebSocket library for Go.
 
 Package `graphql` provides a GraphQL client implementation.
 
 For more information, see package [`github.com/shurcooL/githubv4`](https://github.com/shurcooL/githubv4), which is a specialized version targeting GitHub GraphQL API v4. That package is driving the feature development.
 
-**Note**: Before v0.8.0, `QueryRaw`, `MutateRaw` and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
+**Note**: Before v0.8.0, `QueryRaw`, `MutateRaw`, and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
 
 - [go-graphql-client](#go-graphql-client)
   - [Installation](#installation)
@@ -188,7 +188,7 @@ if err != nil {
 }
 ```
 
-Variables get encoded as normal json. So if you supply a struct for a variable and want to rename fields, you can do this like that:
+Variables get encoded as normal JSON. So if you supply a struct for a variable and want to rename fields, you can do this like this:
 
 ```Go
 type Dimensions struct {
@@ -346,7 +346,7 @@ fmt.Println(q.Hero.Height)
 
 ### Specify GraphQL type name
 
-The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
+The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g. lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
 
 ```go
 type UserReviewInput struct {
@@ -535,7 +535,7 @@ if err != nil {
 
 #### Stop the subscription
 
-You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method, or returning a special error to stop it in the callback.
+You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method or returning a special error to stop it in the callback.
 
 ```Go
 subscriptionId, err := client.Subscribe(&query, nil, func(dataValue []byte, errValue error) error {
@@ -672,7 +672,7 @@ client.WithWebSocketOptions(WebsocketOptions{
 
 #### Custom WebSocket client
 
-By default the subscription client uses [nhooyr WebSocket client](https://github.com/nhooyr/websocket). If you need to customize the client, or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the Websocket interface and replace the constructor with `WithWebSocket` method:
+By default, the subscription client uses [nhooyr WebSocket client](https://github.com/nhooyr/websocket). If you need to customize the client or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the WebSocket interface and replace the constructor with `WithWebSocket` method:
 
 ```go
 // WebsocketHandler abstracts WebSocket connection functions
@@ -724,7 +724,7 @@ client.Run()
 
 ### Options
 
-There are extensible parts in the GraphQL query that we sometimes use. They are optional so that we shouldn't required them in the method. To make it flexible, we can abstract these options as optional arguments that follow this interface.
+There are extensible parts in the GraphQL query that we sometimes use. They are optional so we shouldn't require them in the method. To make it flexible, we can abstract these options as optional arguments that follow this interface.
 
 ```go
 type Option interface {
@@ -735,7 +735,12 @@ type Option interface {
 client.Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error
 ```
 
-Currently we support 2 option types: `operation_name` and `operation_directive`. The operation name option is built-in because it is unique. We can use the option directly with `OperationName`
+Currently, there are 3 option types:
+- `operation_name`
+- `operation_directive`
+- `bind_extensions`
+
+The operation name option is built-in because it is unique. We can use the option directly with `OperationName`.
 
 ```go
 // query MyQuery {
@@ -744,7 +749,7 @@ Currently we support 2 option types: `operation_name` and `operation_directive`.
 client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"))
 ```
 
-In contrast, operation directive is various and customizable on different GraphQL servers. There isn't any built-in directive in the library. You need to define yourself. For example:
+In contrast, operation directives are various and customizable on different GraphQL servers. There isn't any built-in directive in the library. You need to define yourself. For example:
 
 ```go
 // define @cached directive for Hasura queries
@@ -773,7 +778,7 @@ client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"), cachedDirecti
 
 ### Execute pre-built query
 
-The `Exec` function allows you to executing pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing cli flags or something.
+The `Exec` function allows you to execute pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing CLI flags or something.
 
 ```Go
 // filters would be built dynamically somehow from the command line flags
@@ -823,7 +828,7 @@ err = json.Unmarshal(raw, &res)
 
 ### Get extensions from response
 
-The response map may also contain an entry with key `extensions`. To decode this field you need to bind a struct or map pointer. The client will optionally unmarshal the field using json decoder.
+The response map may also contain an entry with the `extensions` key. To decode this field you need to bind a struct or map pointer. The client will optionally unmarshal the field using JSON decoder.
 
 ```go
 var q struct {
@@ -860,8 +865,6 @@ fmt.Println("Extensions:", extensions)
 
 ### With operation name (deprecated)
 
-Operation name is still on API decision plan https://github.com/shurcooL/graphql/issues/12. However, in my opinion separate methods are easier choice to avoid breaking changes
-
 ```Go
 func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, variables map[string]interface{}) error
 
@@ -872,7 +875,7 @@ func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variabl
 
 ### Raw bytes response
 
-In the case we developers want to decode JSON response ourself. Moreover, the default `UnmarshalGraphQL` function isn't ideal with complicated nested interfaces
+In the case when we developers want to decode JSON response ourselves. Moreover, the default `UnmarshalGraphQL` function isn't ideal with complicated nested interfaces
 
 ```Go
 func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}) ([]byte, error)
@@ -886,7 +889,7 @@ func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{},
 
 ### Multiple mutations with ordered map
 
-You might need to make multiple mutations in single query. It's not very convenient with structs
+You might need to make multiple mutations in a single query. It's not very convenient with structs
 so you can use ordered map `[][2]interface{}` instead.
 
 For example, to make the following GraphQL mutation:
@@ -924,7 +927,7 @@ variables := map[string]interface{}{
 
 ### Debugging and Unit test
 
-Enable debug mode with the `WithDebug` function. If the request is failed, the request and response information will be included in `extensions[].internal` property.
+Enable debug mode with the `WithDebug` function. If the request fails, the request and response information will be included in `extensions[].internal` property.
 
 ```json
 {
@@ -975,14 +978,14 @@ func ConstructSubscription(v interface{}, variables map[string]interface{}, opti
 func UnmarshalGraphQL(data []byte, v interface{}) error
 ```
 
-Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To assure the GraphQL query is expected, it's necessary to write some unit test for query construction.
+Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To ensure the GraphQL query is expected, it's necessary to write some unit tests for query construction.
 
 ## Directories
 
 | Path                                                                                   | Synopsis                                                                                                        |
 | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                               |
-| [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming convention. |
+| [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming conventions. |
 | [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                     |
 
 ## References
