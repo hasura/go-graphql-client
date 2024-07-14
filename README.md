@@ -736,6 +736,7 @@ client.Query(ctx context.Context, q interface{}, variables map[string]interface{
 ```
 
 Currently, there are 3 option types:
+
 - `operation_name`
 - `operation_directive`
 - `bind_extensions`
@@ -887,42 +888,70 @@ func (c *Client) NamedQueryRaw(ctx context.Context, name string, q interface{}, 
 func (c *Client) NamedMutateRaw(ctx context.Context, name string, q interface{}, variables map[string]interface{}) ([]byte, error)
 ```
 
-### Multiple mutations with ordered map
+### Dynamic query builder
 
-You might need to make multiple mutations in a single query. It's not very convenient with structs
-so you can use ordered map `[][2]interface{}` instead.
+You might need to dynamically multiple queries or mutations in a request. It isn't convenient with static structures.
+`Builder` helps us construct many queries flexibly.
 
 For example, to make the following GraphQL mutation:
 
 ```GraphQL
-mutation($login1: String!, $login2: String!, $login3: String!) {
-	createUser(login: $login1) { login }
-	createUser(login: $login2) { login }
-	createUser(login: $login3) { login }
+query($userId: String!, $disabled: Boolean!, $limit: Int!) {
+	userByPk(userId: $userId) { id name }
+	groups(disabled: $disabled) { id user_permissions }
+	topUsers: users(limit: $limit) { id name }
 }
-variables {
-	"login1": "grihabor",
-	"login2": "diman",
-	"login3": "indigo"
-}
+
+# variables {
+# 	"userId": "1",
+# 	"disabled": false,
+# 	"limit": 5
+# }
 ```
 
 You can define:
 
 ```Go
-type CreateUser struct {
-	Login string
+type User struct {
+	ID string
+	Name string
 }
-m := [][2]interface{}{
-	{"createUser(login: $login1)", &CreateUser{}},
-	{"createUser(login: $login2)", &CreateUser{}},
-	{"createUser(login: $login3)", &CreateUser{}},
+
+var groups []struct {
+	ID string
+	Permissions []string `graphql:"user_permissions"`
 }
-variables := map[string]interface{}{
-	"login1": "grihabor",
-	"login2": "diman",
-	"login3": "indigo",
+
+var userByPk User
+var topUsers []User
+
+builder := graphql.NewBuilder().
+	Query("userByPk(userId: $userId)", &userByPk).
+	Query("groups(disabled: $disabled)", &groups).
+	Query("topUsers: users(limit: $limit)", &topUsers).
+	Variables(map[string]interface{}{
+		"userId": 1,
+		"disabled": false,
+		"limit": 5,
+	})
+
+query, variables, err := builder.Build()
+if err != nil {
+	return err
 }
+
+err = client.Query(context.Background(), query, variables)
+if err != nil {
+	return err
+}
+
+// or use Query / Mutate shortcut methods
+err = builder.Query(client)
+if err != nil {
+	return err
+}
+
+
 ```
 
 ### Debugging and Unit test
@@ -982,11 +1011,11 @@ Because the GraphQL query string is generated in runtime using reflection, it is
 
 ## Directories
 
-| Path                                                                                   | Synopsis                                                                                                        |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                               |
+| Path                                                                                   | Synopsis                                                                                                         |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                                |
 | [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming conventions. |
-| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                     |
+| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                      |
 
 ## References
 
