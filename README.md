@@ -1,54 +1,54 @@
-go-graphql-client
-=======
+# go-graphql-client
 
 [![Unit tests](https://github.com/hasura/go-graphql-client/actions/workflows/test.yml/badge.svg)](https://github.com/hasura/go-graphql-client/actions/workflows/test.yml)
 
 **Preface:** This is a fork of `https://github.com/shurcooL/graphql` with extended features (subscription client, named operation)
 
-The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using websocket protocol with https://github.com/nhooyr/websocket, a minimal and idiomatic WebSocket library for Go.
+The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using WebSocket protocol with https://github.com/nhooyr/websocket, a minimal and idiomatic WebSocket library for Go.
 
 Package `graphql` provides a GraphQL client implementation.
 
 For more information, see package [`github.com/shurcooL/githubv4`](https://github.com/shurcooL/githubv4), which is a specialized version targeting GitHub GraphQL API v4. That package is driving the feature development.
 
-**Note**: Before v0.8.0, `QueryRaw`, `MutateRaw` and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
+**Note**: Before v0.8.0, `QueryRaw`, `MutateRaw`, and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
 
 - [go-graphql-client](#go-graphql-client)
-	- [Installation](#installation)
-	- [Usage](#usage)
-		- [Authentication](#authentication)
-		- [Simple Query](#simple-query)
-		- [Arguments and Variables](#arguments-and-variables)
-		- [Custom scalar tag](#custom-scalar-tag)
-		- [Skip GraphQL field](#skip-graphql-field)
-		- [Inline Fragments](#inline-fragments)
-		- [Specify GraphQL type name](#specify-graphql-type-name)
-		- [Mutations](#mutations)
-			- [Mutations Without Fields](#mutations-without-fields)
-		- [Subscription](#subscription)
-			- [Usage](#usage-1)
-			- [Subscribe](#subscribe)
-			- [Stop the subscription](#stop-the-subscription)
-			- [Authentication](#authentication-1)
-			- [Options](#options)
-			- [Subscription Protocols](#subscription-protocols)
-			- [Handle connection error](#handle-connection-error)
-			- [Events](#events)
-			- [Custom HTTP Client](#custom-http-client)
-			- [Custom WebSocket client](#custom-websocket-client)
-		- [Options](#options-1)
-		- [Execute pre-built query](#execute-pre-built-query)
-		- [With operation name (deprecated)](#with-operation-name-deprecated)
-		- [Raw bytes response](#raw-bytes-response)
-		- [Dynamic query builder](#dynamic-query-builder)
-		- [Debugging and Unit test](#debugging-and-unit-test)
-	- [Directories](#directories)
-	- [References](#references)
-	- [License](#license)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Authentication](#authentication)
+    - [Simple Query](#simple-query)
+    - [Arguments and Variables](#arguments-and-variables)
+    - [Custom scalar tag](#custom-scalar-tag)
+    - [Skip GraphQL field](#skip-graphql-field)
+    - [Inline Fragments](#inline-fragments)
+    - [Specify GraphQL type name](#specify-graphql-type-name)
+    - [Mutations](#mutations)
+      - [Mutations Without Fields](#mutations-without-fields)
+    - [Subscription](#subscription)
+      - [Usage](#usage-1)
+      - [Subscribe](#subscribe)
+      - [Stop the subscription](#stop-the-subscription)
+      - [Authentication](#authentication-1)
+      - [Options](#options)
+      - [Subscription Protocols](#subscription-protocols)
+      - [Handle connection error](#handle-connection-error)
+      - [Events](#events)
+      - [Custom HTTP Client](#custom-http-client)
+      - [Custom WebSocket client](#custom-websocket-client)
+    - [Options](#options-1)
+    - [Execute pre-built query](#execute-pre-built-query)
+    - [With operation name (deprecated)](#with-operation-name-deprecated)
+    - [Raw bytes response](#raw-bytes-response)
+    - [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
+    - [Debugging and Unit test](#debugging-and-unit-test)
+  - [Directories](#directories)
+  - [References](#references)
+  - [License](#license)
 
 ## Installation
 
-`go-graphql-client` requires Go version 1.20 or later. For older Go versions: 
+`go-graphql-client` requires Go version 1.20 or later. For older Go versions:
+
 - **>= 1.16 < 1.20**: downgrade the library to version v0.9.x
 - **< 1.16**: downgrade the library version below v0.7.1.
 
@@ -188,7 +188,8 @@ if err != nil {
 }
 ```
 
-Variables get encoded as normal json. So if you supply a struct for a variable and want to rename fields, you can do this like that:
+Variables get encoded as normal JSON. So if you supply a struct for a variable and want to rename fields, you can do this like this:
+
 ```Go
 type Dimensions struct {
 	Width int `json:"ship_width"`,
@@ -213,6 +214,7 @@ variables := map[string]interface{}{
 err := client.Mutate(context.TODO(), &mutation, variables)
 
 ```
+
 which will set `ship_dimensions` to an object with the properties `ship_width` and `ship_height`.
 
 ### Custom scalar tag
@@ -344,7 +346,7 @@ fmt.Println(q.Hero.Height)
 
 ### Specify GraphQL type name
 
-The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
+The GraphQL type is automatically inferred from Go type by reflection. However, it's cumbersome in some use cases, e.g. lowercase names. In Go, a type name with a first lowercase letter is considered private. If we need to reuse it for other packages, there are 2 approaches: type alias or implement `GetGraphQLType` method.
 
 ```go
 type UserReviewInput struct {
@@ -533,7 +535,7 @@ if err != nil {
 
 #### Stop the subscription
 
-You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method, or returning a special error to stop it in the callback.
+You can programmatically stop the subscription while the client is running by using the `Unsubscribe` method or returning a special error to stop it in the callback.
 
 ```Go
 subscriptionId, err := client.Subscribe(&query, nil, func(dataValue []byte, errValue error) error {
@@ -580,7 +582,7 @@ client := graphql.NewSubscriptionClient(serverEndpoint).
             "Authorization": []string{"Bearer random-secret"},
         },
     })
-``` 
+```
 
 #### Options
 
@@ -608,6 +610,7 @@ client.
 #### Subscription Protocols
 
 The subscription client supports 2 protocols:
+
 - [subscriptions-transport-ws](https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md) (default)
 - [graphql-ws](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md)
 
@@ -669,7 +672,7 @@ client.WithWebSocketOptions(WebsocketOptions{
 
 #### Custom WebSocket client
 
-By default the subscription client uses [nhooyr WebSocket client](https://github.com/nhooyr/websocket). If you need to customize the client, or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the Websocket interface and replace the constructor with `WithWebSocket` method:
+By default, the subscription client uses [nhooyr WebSocket client](https://github.com/nhooyr/websocket). If you need to customize the client or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the WebSocket interface and replace the constructor with `WithWebSocket` method:
 
 ```go
 // WebsocketHandler abstracts WebSocket connection functions
@@ -721,7 +724,7 @@ client.Run()
 
 ### Options
 
-There are extensible parts in the GraphQL query that we sometimes use. They are optional so that we shouldn't required them in the method. To make it flexible, we can abstract these options as optional arguments that follow this interface.
+There are extensible parts in the GraphQL query that we sometimes use. They are optional so we shouldn't require them in the method. To make it flexible, we can abstract these options as optional arguments that follow this interface.
 
 ```go
 type Option interface {
@@ -732,7 +735,13 @@ type Option interface {
 client.Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error
 ```
 
-Currently we support 2 option types: `operation_name` and `operation_directive`. The operation name option is built-in because it is unique. We can use the option directly with `OperationName`
+Currently, there are 3 option types:
+
+- `operation_name`
+- `operation_directive`
+- `bind_extensions`
+
+The operation name option is built-in because it is unique. We can use the option directly with `OperationName`.
 
 ```go
 // query MyQuery {
@@ -741,7 +750,7 @@ Currently we support 2 option types: `operation_name` and `operation_directive`.
 client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"))
 ```
 
-In contrast, operation directive is various and customizable on different GraphQL servers. There isn't any built-in directive in the library. You need to define yourself. For example:
+In contrast, operation directives are various and customizable on different GraphQL servers. There isn't any built-in directive in the library. You need to define yourself. For example:
 
 ```go
 // define @cached directive for Hasura queries
@@ -770,7 +779,7 @@ client.Query(ctx, &q, variables, graphql.OperationName("MyQuery"), cachedDirecti
 
 ### Execute pre-built query
 
-The `Exec` function allows you to executing pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing cli flags or something.
+The `Exec` function allows you to execute pre-built queries. While using reflection to build queries is convenient as you get some resemblance of type safety, it gets very cumbersome when you need to create queries semi-dynamically. For instance, imagine you are building a CLI tool to query data from a graphql endpoint and you want users to be able to narrow down the query by passing CLI flags or something.
 
 ```Go
 // filters would be built dynamically somehow from the command line flags
@@ -818,9 +827,44 @@ if err != nil {
 err = json.Unmarshal(raw, &res)
 ```
 
-### With operation name (deprecated)
+### Get extensions from response
 
-Operation name is still on API decision plan https://github.com/shurcooL/graphql/issues/12. However, in my opinion separate methods are easier choice to avoid breaking changes
+The response map may also contain an entry with the `extensions` key. To decode this field you need to bind a struct or map pointer. The client will optionally unmarshal the field using JSON decoder.
+
+```go
+var q struct {
+	User struct {
+		ID   string `graphql:"id"`
+		Name string `graphql:"name"`
+	}
+}
+
+var ext struct {
+	ID     int    `json:"id"`
+	Domain string `json:"domain"`
+}
+
+err := client.Query(context.Background(), &q, map[string]interface{}{}, graphql.BindExtensions(&ext))
+if err != nil {
+	t.Fatal(err)
+}
+```
+
+Additionally, if you need information about the extensions returned in the response use `ExecRawWithExtensions`. This function returns a map with extensions as the second variable.
+
+```Go
+query := `query{something(where: { foo: { _eq: "bar" }}){id}}`
+
+data, extensions, err := client.ExecRawWithExtensions(ctx, query, map[string]any{})
+if err != nil {
+	panic(err)
+}
+
+// You can now use the `extensions` variable to access the extensions data
+fmt.Println("Extensions:", extensions)
+```
+
+### With operation name (deprecated)
 
 ```Go
 func (c *Client) NamedQuery(ctx context.Context, name string, q interface{}, variables map[string]interface{}) error
@@ -832,7 +876,7 @@ func (sc *SubscriptionClient) NamedSubscribe(name string, v interface{}, variabl
 
 ### Raw bytes response
 
-In the case we developers want to decode JSON response ourself. Moreover, the default `UnmarshalGraphQL` function isn't ideal with complicated nested interfaces
+In the case when we developers want to decode JSON response ourselves. Moreover, the default `UnmarshalGraphQL` function isn't ideal with complicated nested interfaces
 
 ```Go
 func (c *Client) QueryRaw(ctx context.Context, q interface{}, variables map[string]interface{}) ([]byte, error)
@@ -912,41 +956,42 @@ if err != nil {
 
 ### Debugging and Unit test
 
-Enable debug mode with the `WithDebug` function. If the request is failed, the request and response information will be included in `extensions[].internal` property.
+Enable debug mode with the `WithDebug` function. If the request fails, the request and response information will be included in `extensions[].internal` property.
 
 ```json
 {
-	"errors": [
-		{
-			"message":"Field 'user' is missing required arguments: login",
-			"extensions": {
-				"internal": {
-					"request": {
-						"body":"{\"query\":\"{user{name}}\"}",
-						"headers": {
-							"Content-Type": ["application/json"]
-						}
-					},
-					"response": {
-						"body":"{\"errors\": [{\"message\": \"Field 'user' is missing required arguments: login\",\"locations\": [{\"line\": 7,\"column\": 3}]}]}",
-						"headers": {
-							"Content-Type": ["application/json"]
-						}
-					}
-				}
-			},
-			"locations": [
-				{
-					"line":7,
-					"column":3
-				}
-			]
-		}
-	]
+  "errors": [
+    {
+      "message": "Field 'user' is missing required arguments: login",
+      "extensions": {
+        "internal": {
+          "request": {
+            "body": "{\"query\":\"{user{name}}\"}",
+            "headers": {
+              "Content-Type": ["application/json"]
+            }
+          },
+          "response": {
+            "body": "{\"errors\": [{\"message\": \"Field 'user' is missing required arguments: login\",\"locations\": [{\"line\": 7,\"column\": 3}]}]}",
+            "headers": {
+              "Content-Type": ["application/json"]
+            }
+          }
+        }
+      },
+      "locations": [
+        {
+          "line": 7,
+          "column": 3
+        }
+      ]
+    }
+  ]
 }
 ```
 
 For debugging queries, you can use `Construct*` functions to see what the generated query looks like:
+
 ```go
 // ConstructQuery build GraphQL query string from struct and variables
 func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error)
@@ -962,25 +1007,22 @@ func ConstructSubscription(v interface{}, variables map[string]interface{}, opti
 func UnmarshalGraphQL(data []byte, v interface{}) error
 ```
 
-Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To assure the GraphQL query is expected, it's necessary to write some unit test for query construction.
+Because the GraphQL query string is generated in runtime using reflection, it isn't really safe. To ensure the GraphQL query is expected, it's necessary to write some unit tests for query construction.
 
-Directories
------------
+## Directories
 
-| Path                                                                                   | Synopsis                                                                                                        |
-|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                               |
-| [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming convention. |
-| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                     |
+| Path                                                                                   | Synopsis                                                                                                         |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                                |
+| [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming conventions. |
+| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                      |
 
-References
-----------
+## References
+
 - https://github.com/shurcooL/graphql
 - https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
 - https://github.com/nhooyr/websocket
 
+## License
 
-License
--------
-
--	[MIT License](LICENSE)
+- [MIT License](LICENSE)

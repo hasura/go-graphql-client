@@ -26,14 +26,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.20"
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Install dependencies
         run: |
           go get -t -v ./...
@@ -52,8 +44,6 @@ jobs:
           version: latest
           only-new-issues: true
           skip-cache: true
-          skip-pkg-cache: true
-          skip-build-cache: true
           args: --timeout=120s
       - name: Run Go unit tests for example/subscription
         run: |
@@ -63,13 +53,13 @@ jobs:
       - name: Run Go unit tests
         run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
       - name: Go coverage format
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
         run: |
           go get github.com/boumenot/gocover-cobertura
           go install github.com/boumenot/gocover-cobertura
           gocover-cobertura < coverage.out > coverage.xml
       - name: Code Coverage Summary Report
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage.xml
@@ -83,7 +73,7 @@ jobs:
           thresholds: "60 80"
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
         with:
           path: code-coverage-results.md
       - name: Dump docker logs on failure
