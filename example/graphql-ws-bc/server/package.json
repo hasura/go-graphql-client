@@ -8,14 +8,14 @@
   },
   "license": "MIT",
   "dependencies": {
-    "graphql": "^16.8.1",
-    "graphql-ws": "^5.14.3",
+    "graphql": "^16.9.0",
+    "graphql-ws": "^5.16.0",
     "subscriptions-transport-ws": "^0.11.0",
-    "ws": "^8.16.0"
+    "ws": "^8.17.1"
   },
   "devDependencies": {
     "@types/ws": "^8.5.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.5.2"
   }
 }

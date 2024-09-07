@@ -4,8 +4,6 @@ package graphql
 type OptionType string
 
 const (
-	// optionTypeOperationName is private because it's option is built-in and unique
-	optionTypeOperationName      OptionType = "operation_name"
 	OptionTypeOperationDirective OptionType = "operation_directive"
 )
 
@@ -15,8 +13,6 @@ type Option interface {
 	// Type returns the supported type of the renderer
 	// available types: operation_name and operation_directive
 	Type() OptionType
-	// String returns the query component string
-	String() string
 }
 
 // operationNameOption represents the operation name render component
@@ -25,7 +21,7 @@ type operationNameOption struct {
 }
 
 func (ono operationNameOption) Type() OptionType {
-	return optionTypeOperationName
+	return "operation_name"
 }
 
 func (ono operationNameOption) String() string {
@@ -35,4 +31,18 @@ func (ono operationNameOption) String() string {
 // OperationName creates the operation name option
 func OperationName(name string) Option {
 	return operationNameOption{name}
+}
+
+// bind the struct pointer to decode extensions from response
+type bindExtensionsOption struct {
+	value any
+}
+
+func (ono bindExtensionsOption) Type() OptionType {
+	return "bind_extensions"
+}
+
+// BindExtensions bind the struct pointer to decode extensions from json response
+func BindExtensions(value any) Option {
+	return bindExtensionsOption{value: value}
 }

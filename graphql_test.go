@@ -217,7 +217,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("got error: nil, want: non-nil")
 	}
-	if got, want := err.Error(), `Message: 500 Internal Server Error; body: "important message\n", Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
+	if got, want := err.Error(), `Message: 500 Internal Server Error, Locations: [], Extensions: map[code:request_error], Path: []`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if q.User.Name != "" {
@@ -242,7 +242,7 @@ func TestClient_Query_errorStatusCode(t *testing.T) {
 		t.Errorf("the error type should be graphql.Errors")
 	}
 	gqlErr = err.(graphql.Errors)
-	if got, want := gqlErr[0].Message, `500 Internal Server Error; body: "important message\n"`; got != want {
+	if got, want := gqlErr[0].Message, `500 Internal Server Error`; got != want {
 		t.Errorf("got error: %v, want: %v", got, want)
 	}
 	if got, want := gqlErr[0].Extensions["code"], graphql.ErrRequestError; got != want {
@@ -472,9 +472,99 @@ func TestClient_Exec_QueryRaw(t *testing.T) {
 	}
 }
 
+func TestClient_BindExtensions(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"id": 1, "domain": "users"}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var q struct {
+		User struct {
+			ID   string `graphql:"id"`
+			Name string `graphql:"name"`
+		}
+	}
+
+	var ext struct {
+		ID     int    `json:"id"`
+		Domain string `json:"domain"`
+	}
+
+	err := client.Query(context.Background(), &q, map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Fatalf("got q.User.Name: %q, want: %q", got, want)
+	}
+
+	err = client.Query(context.Background(), &q, map[string]interface{}{}, graphql.BindExtensions(&ext))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := q.User.Name, "Gopher"; got != want {
+		t.Fatalf("got q.User.Name: %q, want: %q", got, want)
+	}
+
+	if got, want := ext.ID, 1; got != want {
+		t.Errorf("got ext.ID: %q, want: %q", got, want)
+	}
+	if got, want := ext.Domain, "users"; got != want {
+		t.Errorf("got ext.Domain: %q, want: %q", got, want)
+	}
+}
+
+// Test exec pre-built query, return raw json string and map
+// with extensions
+func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		body := mustRead(req.Body)
+		if got, want := body, `{"query":"{user{id,name}}"}`+"\n"; got != want {
+			t.Errorf("got body: %v, want %v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"id": 1, "domain": "users"}}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var ext struct {
+		ID     int    `json:"id"`
+		Domain string `json:"domain"`
+	}
+
+	_, extensions, err := client.ExecRawWithExtensions(context.Background(), "{user{id,name}}", map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := extensions; got == nil {
+		t.Errorf("got nil extensions: %q, want: non-nil", got)
+	}
+
+	err = json.Unmarshal(extensions, &ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := ext.ID, 1; got != want {
+		t.Errorf("got ext.ID: %q, want: %q", got, want)
+	}
+	if got, want := ext.Domain, "users"; got != want {
+		t.Errorf("got ext.Domain: %q, want: %q", got, want)
+	}
+}
+
 // Issue: https://github.com/hasura/go-graphql-client/issues/139
 func TestUnmarshalGraphQL_unionSlice(t *testing.T) {
-
 	expectedQuery := `query($cursor0: String, $searchQuery: String!) {
 		search(type: ISSUE, query: $searchQuery, first: 100, after: $cursor0) {
 			pageInfo {
@@ -599,6 +689,139 @@ func TestUnmarshalGraphQL_unionSlice(t *testing.T) {
 
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("got %+v, want: %+v", got, want)
+	}
+}
+
+// Issue: https://github.com/hasura/go-graphql-client/issues/152
+func TestUnmarshalGraphQL_shopifyAdminAPI(t *testing.T) {
+
+	type testQuery struct {
+		Orders struct {
+			Edges []struct {
+				Cursor string
+				Node   struct {
+					ID                       string
+					Test                     bool
+					Name                     string
+					Email                    *string
+					DisplayFinancialStatus   string
+					DisplayFulfillmentStatus string
+					ReturnStatus             string
+					Note                     string
+					ClientIP                 string
+					Closed                   bool
+					ClosedAt                 *time.Time
+					CancelledAt              *time.Time
+					CustomAttributes         []struct {
+						Key   string
+						Value string
+					}
+					Customer struct {
+						Email string
+					}
+				}
+			}
+			PageInfo struct {
+				EndCursor   string
+				HasNextPage bool
+			}
+		} `graphql:"orders(first: $first, after: $after)"`
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{
+			"data": {
+				"orders": {
+					"edges": [
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1004",
+								"email": null,
+								"displayFinancialStatus": "PAID",
+								"displayFulfillmentStatus": "UNFULFILLED",
+								"returnStatus": "NO_RETURN",
+								"note": "unfulfilled",
+								"clientIp": "x",
+								"closed": false,
+								"closedAt": null,
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						},
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1005",
+								"email": null,
+								"displayFinancialStatus": "REFUNDED",
+								"displayFulfillmentStatus": "FULFILLED",
+								"returnStatus": "NO_RETURN",
+								"note": "fulfilled then refunded (not returned)",
+								"clientIp": "x",
+								"closed": true,
+								"closedAt": "2024-08-29T02:07:04Z",
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						},
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1006",
+								"email": null,
+								"displayFinancialStatus": "PAID",
+								"displayFulfillmentStatus": "FULFILLED",
+								"returnStatus": "IN_PROGRESS",
+								"note": "fulfulled and return in progress",
+								"clientIp": "x",
+								"closed": false,
+								"closedAt": null,
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						}
+					],
+					"pageInfo": {
+						"endCursor": "x==",
+						"hasNextPage": false
+					}
+				}
+			},
+			"extensions": {
+				"cost": {
+					"requestedQueryCost": 8,
+					"actualQueryCost": 8,
+					"throttleStatus": {
+						"maximumAvailable": 2000.0,
+						"currentlyAvailable": 1992,
+						"restoreRate": 100.0
+					}
+				}
+			}
+		}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var got testQuery
+
+	err := client.Query(context.Background(), &got, map[string]interface{}{
+		"first": 10,
+		"after": "test",
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
