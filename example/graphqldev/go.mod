@@ -8,8 +8,8 @@ require (
 )
 
 require (
+	github.com/coder/websocket v1.8.12 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	nhooyr.io/websocket v1.8.10 // indirect
 )
 
 replace github.com/hasura/go-graphql-client => ../../

@@ -37,7 +37,7 @@ jobs:
       - name: Setup integration test infrastructure
         run: |
           cd ./example/hasura
-          docker-compose up -d
+          docker compose up -d
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
