@@ -4,7 +4,7 @@
 
 **Preface:** This is a fork of `https://github.com/shurcooL/graphql` with extended features (subscription client, named operation)
 
-The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using WebSocket protocol with https://github.com/nhooyr/websocket, a minimal and idiomatic WebSocket library for Go.
+The subscription client follows Apollo client specification https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md, using WebSocket protocol with https://github.com/coder/websocket, a minimal and idiomatic WebSocket library for Go.
 
 Package `graphql` provides a GraphQL client implementation.
 
@@ -672,7 +672,7 @@ client.WithWebSocketOptions(WebsocketOptions{
 
 #### Custom WebSocket client
 
-By default, the subscription client uses [nhooyr WebSocket client](https://github.com/nhooyr/websocket). If you need to customize the client or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the WebSocket interface and replace the constructor with `WithWebSocket` method:
+By default, the subscription client uses [coder WebSocket client](https://github.com/coder/websocket). If you need to customize the client or prefer using [Gorilla WebSocket](https://github.com/gorilla/websocket), let's follow the WebSocket interface and replace the constructor with `WithWebSocket` method:
 
 ```go
 // WebsocketHandler abstracts WebSocket connection functions
@@ -706,7 +706,7 @@ func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 		return nil, err
 	}
 
-	// The default WebsocketHandler implementation using nhooyr's
+	// The default WebsocketHandler implementation using coder's
 	return &WebsocketHandler{
 		ctx:     sc.GetContext(),
 		Conn:    c,
@@ -992,7 +992,7 @@ Because the GraphQL query string is generated in runtime using reflection, it is
 
 - https://github.com/shurcooL/graphql
 - https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-- https://github.com/nhooyr/websocket
+- https://github.com/coder/websocket
 
 ## License
 

@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // SubscriptionProtocolType represents the protocol specification enum of the subscription
@@ -419,7 +419,7 @@ func (sc *SubscriptionClient) GetSubscription(id string) *Subscription {
 }
 
 // WithWebSocket replaces customized websocket client constructor
-// In default, subscription client uses https://github.com/nhooyr/websocket
+// In default, subscription client uses https://github.com/coder/websocket
 func (sc *SubscriptionClient) WithWebSocket(fn func(sc *SubscriptionClient) (WebsocketConn, error)) *SubscriptionClient {
 	sc.createConn = fn
 	return sc
@@ -1014,7 +1014,7 @@ func parseInt32Ranges(codes []string) ([][]int32, error) {
 	return statusCodes, nil
 }
 
-// default websocket handler implementation using https://github.com/nhooyr/websocket
+// default websocket handler implementation using https://github.com/coder/websocket
 type WebsocketHandler struct {
 	ctx     context.Context
 	timeout time.Duration
@@ -1069,7 +1069,7 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 }
 
 // the default constructor function to create a websocket client
-// which uses https://github.com/nhooyr/websocket library
+// which uses https://github.com/coder/websocket library
 func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
 
 	options := &websocket.DialOptions{
