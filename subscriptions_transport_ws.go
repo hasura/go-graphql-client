@@ -155,7 +155,7 @@ func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscri
 
 		// try to parse the error object
 		var payload interface{}
-		err := fmt.Errorf(string(message.Payload))
+		err := errors.New(string(message.Payload))
 		jsonErr := json.Unmarshal(message.Payload, &payload)
 		if jsonErr == nil {
 			var errMsg string

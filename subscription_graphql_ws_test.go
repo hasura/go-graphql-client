@@ -71,9 +71,9 @@ func waitService(endpoint string, timeoutSecs int) error {
 	if res != nil {
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
-			return fmt.Errorf(res.Status)
+			return errors.New(res.Status)
 		}
-		return fmt.Errorf(string(body))
+		return errors.New(string(body))
 	}
 	return errors.New("unknown error")
 }
