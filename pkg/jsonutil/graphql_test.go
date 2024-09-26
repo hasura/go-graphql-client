@@ -2,6 +2,7 @@ package jsonutil_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -156,6 +157,97 @@ func TestUnmarshalGraphQL_orderedMap(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("not equal: %v != %v", got, want)
+	}
+}
+
+func TestUnmarshalGraphQL_orderedSliceMap(t *testing.T) {
+	type query [][2]interface{}
+	var result []string
+	got := query{
+		{"foo", &result},
+	}
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+		"foo": ["bar", "baz"]
+	}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := query{
+		{"foo", &result},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("not equal: %v != %v", got, want)
+	}
+	if g, w := fmt.Sprint(result), fmt.Sprint([]string{"bar", "baz"}); g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+}
+
+func TestUnmarshalGraphQL_orderedSliceMapMultipleBindings(t *testing.T) {
+
+	type query [][2]interface{}
+	var resultObject struct {
+		ID   int
+		Name string
+	}
+	var resultSlice []struct {
+		Email  string
+		Active bool
+		Roles  []struct {
+			Name string
+		}
+	}
+
+	got := query{
+		{"user", &resultObject},
+		{"profiles", &resultSlice},
+	}
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+		"user": {"id":1,"name":"Gopher"},
+		"profiles": [
+			{"email":"gopher@domain","active": true, "roles": [{"name":"admin"},{"name":"user"}]},
+			{"email":"gopher2@domain","active": false, "roles": [{"name":"anonymous"}]}
+		]
+	}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := query{
+		{"user", &resultObject},
+		{"profiles", &resultSlice},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("not equal: %v != %v", got, want)
+	}
+	if g, w := resultObject.ID, 1; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultObject.Name, "Gopher"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := len(resultSlice), 2; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[0].Email, "gopher@domain"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[0].Active, true; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[0].Roles[0].Name, "admin"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[0].Roles[1].Name, "user"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[1].Email, "gopher2@domain"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[1].Active, false; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
+	}
+	if g, w := resultSlice[1].Roles[0].Name, "anonymous"; g != w {
+		t.Errorf("not equal: %v != %v", g, w)
 	}
 }
 
