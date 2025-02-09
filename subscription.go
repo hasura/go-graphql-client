@@ -138,11 +138,12 @@ type SubscriptionContext struct {
 	client        *SubscriptionClient
 	websocketConn WebsocketConn
 
-	connectionInitAt time.Time
-	acknowledged     int32
-	cancel           context.CancelFunc
-	subscriptions    map[string]Subscription
-	mutex            sync.Mutex
+	connectionInitAt      time.Time
+	lastReceivedMessageAt time.Time
+	acknowledged          int32
+	cancel                context.CancelFunc
+	subscriptions         map[string]Subscription
+	mutex                 sync.Mutex
 }
 
 // Log prints condition logging with message type filters
@@ -228,6 +229,13 @@ func (sc *SubscriptionContext) SetWebsocketConn(conn WebsocketConn) {
 	defer sc.mutex.Unlock()
 
 	sc.websocketConn = conn
+}
+
+func (sc *SubscriptionContext) setLastReceivedMessageAt(t time.Time) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	sc.lastReceivedMessageAt = t
 }
 
 // GetSubscription get the subscription state by id
@@ -384,6 +392,7 @@ func (sc *SubscriptionContext) init(parentContext context.Context) error {
 	}
 }
 
+// run the subscription client goroutine session to receive WebSocket messages.
 func (sc *SubscriptionContext) run() {
 	for {
 		select {
@@ -446,6 +455,7 @@ func (sc *SubscriptionContext) run() {
 				continue
 			}
 
+			sc.setLastReceivedMessageAt(time.Now())
 			sub := sc.GetSubscription(message.ID)
 			if sub == nil {
 				sub = &Subscription{}

@@ -530,8 +530,8 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		t.Fatalf("failed to listen OnSubscriptionComplete event. got %+v, want: %+v", len(subscriptionResults), len(fixtures))
 	}
 	for i, s := range subscriptionResults {
-		if s.GetID() != fixtures[i].ExpectedID {
-			t.Fatalf("%d: subscription id not matched, got: %s, want: %s", i, s.GetPayload().Query, fixtures[i].ExpectedPayload.Query)
+		if s.GetKey() != fixtures[i].ExpectedID {
+			t.Fatalf("%d: subscription id not matched, got: %s, want: %s", i, s.GetKey(), fixtures[i].ExpectedID)
 		}
 		if s.GetPayload().Query != fixtures[i].ExpectedPayload.Query {
 			t.Fatalf("%d: query output not matched, got: %s, want: %s", i, s.GetPayload().Query, fixtures[i].ExpectedPayload.Query)
