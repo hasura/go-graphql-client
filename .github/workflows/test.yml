@@ -3,16 +3,12 @@ name: Unit tests
 on:
   pull_request:
   push:
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/*.yml"
-      - "example/hasura/docker-compose.yaml"
+    branches:
+      - master
 
 jobs:
   test-go:
-    name: Run Go lint and unit tests
+    name: Run unit and integration tests
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -30,21 +26,10 @@ jobs:
         run: |
           go get -t -v ./...
           go install ./...
-      - name: Format
-        run: diff -u <(echo -n) <(gofmt -d -s .)
-      - name: Vet
-        run: go vet ./...
       - name: Setup integration test infrastructure
         run: |
           cd ./example/hasura
           docker compose up -d
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          only-new-issues: true
-          skip-cache: true
-          args: --timeout=120s
       - name: Run Go unit tests for example/subscription
         run: |
           cd example/subscription

@@ -80,8 +80,7 @@ var (
 	// ErrSubscriptionNotExists an error denoting that subscription does not exist
 	ErrSubscriptionNotExists = errors.New("subscription does not exist")
 
-	errSubscriptionClientIsAlreadyRunning = errors.New("the subscription client is already running")
-	errRetry                              = errors.New("retry subscription client")
+	errRetry = errors.New("retry subscription client")
 )
 
 // OperationMessage represents a subscription operation message
@@ -1106,7 +1105,7 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 			}
 
 			if sc.connectionInitialisationTimeout > 0 && !session.GetAcknowledge() &&
-				time.Now().Sub(session.connectionInitAt) > sc.connectionInitialisationTimeout {
+				time.Since(session.connectionInitAt) > sc.connectionInitialisationTimeout {
 				sc.errorChan <- &websocket.CloseError{
 					Code:   StatusConnectionInitialisationTimeout,
 					Reason: "Connection initialisation timeout",
