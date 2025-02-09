@@ -125,23 +125,18 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 	case GQLComplete:
 		ctx.Log(message, "server", message.Type)
 		sub := ctx.GetSubscription(message.ID)
-		if ctx.OnSubscriptionComplete != nil {
-			if sub == nil {
-				ctx.OnSubscriptionComplete(Subscription{
-					id: message.ID,
-				})
-			} else {
-				ctx.OnSubscriptionComplete(*sub)
-			}
-		}
-		if sub != nil {
+		if sub == nil {
+			ctx.OnSubscriptionComplete(Subscription{
+				id: message.ID,
+			})
+		} else {
+			ctx.OnSubscriptionComplete(*sub)
 			ctx.SetSubscription(sub.GetKey(), nil)
 		}
 	case GQLPing:
 		ctx.Log(message, "server", GQLPing)
-		if ctx.OnConnectionAlive != nil {
-			ctx.OnConnectionAlive()
-		}
+		ctx.OnConnectionAlive()
+
 		// send pong response message back to the server
 		msg := OperationMessage{
 			Type:    GQLPong,
@@ -162,9 +157,8 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 				return nil
 			}
 		}
-		if ctx.OnConnected != nil {
-			ctx.OnConnected()
-		}
+
+		ctx.OnConnected()
 	default:
 		ctx.Log(message, "server", GQLUnknown)
 	}

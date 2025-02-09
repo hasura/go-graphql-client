@@ -376,3 +376,193 @@ func TestGraphQLWS_OnError(t *testing.T) {
 
 	<-stop
 }
+
+func TestSubscription_WithRetryStatusCodes(t *testing.T) {
+	stop := make(chan bool)
+	msg := randomID()
+	disconnectedCount := 0
+	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
+		WithProtocol(GraphQLWS).
+		WithRetryStatusCodes("4400").
+		WithConnectionParams(map[string]interface{}{
+			"headers": map[string]string{
+				"x-hasura-admin-secret": "test",
+			},
+		}).WithLog(log.Println).
+		OnDisconnected(func() {
+			disconnectedCount++
+			if disconnectedCount > 5 {
+				stop <- true
+			}
+		}).
+		OnError(func(sc *SubscriptionClient, err error) error {
+			t.Fatal("should not receive error")
+			return err
+		})
+
+	/*
+		subscription {
+			user {
+				id
+				name
+			}
+		}
+	*/
+	var sub struct {
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	go func() {
+		if err := subscriptionClient.Run(); err != nil && websocket.CloseStatus(err) == 4400 {
+			t.Errorf("should not get error 4400, got error: %v, want: nil", err)
+		}
+	}()
+
+	defer subscriptionClient.Close()
+
+	// wait until the subscription client connects to the server
+	if err := waitHasuraService(60); err != nil {
+		t.Fatalf("failed to start hasura service: %s", err)
+	}
+
+	<-stop
+}
+
+func TestSubscription_closeThenRun(t *testing.T) {
+	_, subscriptionClient := hasura_setupClients(GraphQLWS)
+
+	fixtures := []struct {
+		Query        interface{}
+		Variables    map[string]interface{}
+		Subscription *Subscription
+	}{
+		{
+			Query: func() interface{} {
+				var t struct {
+					Users []struct {
+						ID   int    `graphql:"id"`
+						Name string `graphql:"name"`
+					} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+				}
+
+				return t
+			}(),
+			Variables: nil,
+			Subscription: &Subscription{
+				payload: GraphQLRequestPayload{
+					Query: "subscription{helloSaid{id,msg}}",
+				},
+			},
+		},
+		{
+			Query: func() interface{} {
+				var t struct {
+					Users []struct {
+						ID int `graphql:"id"`
+					} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+				}
+
+				return t
+			}(),
+			Variables: nil,
+			Subscription: &Subscription{
+				payload: GraphQLRequestPayload{
+					Query: "subscription{helloSaid{msg}}",
+				},
+			},
+		},
+	}
+
+	subscriptionClient = subscriptionClient.
+		WithExitWhenNoSubscription(false).
+		WithTimeout(3 * time.Second).
+		OnError(func(sc *SubscriptionClient, err error) error {
+			t.Fatalf("got error: %v, want: nil", err)
+			return err
+		})
+
+	bulkSubscribe := func() {
+
+		for _, f := range fixtures {
+			id, err := subscriptionClient.Subscribe(f.Query, f.Variables, func(data []byte, e error) error {
+				if e != nil {
+					t.Fatalf("got error: %v, want: nil", e)
+					return nil
+				}
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("got error: %v, want: nil", err)
+			}
+			log.Printf("subscribed: %s", id)
+		}
+	}
+
+	bulkSubscribe()
+
+	go func() {
+		if err := subscriptionClient.Run(); err != nil {
+			t.Errorf("got error: %v, want: nil", err)
+		}
+	}()
+
+	time.Sleep(3 * time.Second)
+	if err := subscriptionClient.Close(); err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	bulkSubscribe()
+
+	go func() {
+		length := len(subscriptionClient.GetSubscriptions())
+		if length != 2 {
+			t.Errorf("unexpected subscription client. got: %d, want: 2", length)
+			return
+		}
+
+		waitingLen := subscriptionClient.getCurrentSession().GetSubscriptionsLength([]SubscriptionStatus{SubscriptionWaiting})
+		if waitingLen != 2 {
+			t.Errorf("unexpected waiting subscription client. got: %d, want: 2", waitingLen)
+		}
+		if err := subscriptionClient.Run(); err != nil {
+			t.Errorf("got error: %v, want: nil", err)
+		}
+	}()
+
+	time.Sleep(3 * time.Second)
+	length := len(subscriptionClient.GetSubscriptions())
+	if length != 2 {
+		t.Fatalf("unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v", length, subscriptionClient.currentSession.subscriptions)
+	}
+	if err := subscriptionClient.Close(); err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+}
