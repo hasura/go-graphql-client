@@ -361,8 +361,8 @@ func TestGraphQLWS_OnError(t *testing.T) {
 	}
 
 	go func() {
-		if err := subscriptionClient.Run(); err == nil || websocket.CloseStatus(err) != 4400 {
-			t.Errorf("got error: %v, want: 4400", err)
+		if err := subscriptionClient.Run(); err == nil || !subscriptionClient.IsUnauthorized(err) {
+			t.Errorf("got error: %v, want: unauthorized", err)
 		}
 		stop <- true
 	}()
@@ -383,7 +383,7 @@ func TestSubscription_WithRetryStatusCodes(t *testing.T) {
 	disconnectedCount := 0
 	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
 		WithProtocol(GraphQLWS).
-		WithRetryStatusCodes("4400").
+		WithRetryStatusCodes("4400", "4403").
 		WithConnectionParams(map[string]interface{}{
 			"headers": map[string]string{
 				"x-hasura-admin-secret": "test",
@@ -539,8 +539,6 @@ func TestSubscription_closeThenRun(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 
-	bulkSubscribe()
-
 	go func() {
 		length := len(subscriptionClient.GetSubscriptions())
 		if length != 2 {
@@ -548,9 +546,8 @@ func TestSubscription_closeThenRun(t *testing.T) {
 			return
 		}
 
-		waitingLen := subscriptionClient.getCurrentSession().GetSubscriptionsLength([]SubscriptionStatus{SubscriptionWaiting})
-		if waitingLen != 2 {
-			t.Errorf("unexpected waiting subscription client. got: %d, want: 2", waitingLen)
+		if subscriptionClient.getCurrentSession() != nil {
+			t.Error("unexpected nil session")
 		}
 		if err := subscriptionClient.Run(); err != nil {
 			t.Errorf("got error: %v, want: nil", err)

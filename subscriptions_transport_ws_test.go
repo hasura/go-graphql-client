@@ -121,8 +121,6 @@ func TestSubscriptionsTransportWS_closeThenRun(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 
-	bulkSubscribe()
-
 	go func() {
 		length := len(subscriptionClient.GetSubscriptions())
 		if length != 2 {
@@ -130,9 +128,8 @@ func TestSubscriptionsTransportWS_closeThenRun(t *testing.T) {
 			return
 		}
 
-		waitingLen := subscriptionClient.getCurrentSession().GetSubscriptionsLength([]SubscriptionStatus{SubscriptionWaiting})
-		if waitingLen != 2 {
-			t.Errorf("unexpected waiting subscription client. got: %d, want: 2", waitingLen)
+		if subscriptionClient.getCurrentSession() != nil {
+			t.Errorf("unexpected nil session")
 		}
 		if err := subscriptionClient.Run(); err != nil {
 			t.Errorf("got error: %v, want: nil", err)
@@ -212,7 +209,7 @@ func TestTransportWS_OnError(t *testing.T) {
 	}
 
 	go func() {
-		unauthorizedErr := "invalid x-hasura-admin-secret/x-hasura-access-key"
+		unauthorizedErr := `invalid "x-hasura-admin-secret"/"x-hasura-access-key"`
 		err := subscriptionClient.Run()
 
 		if err == nil || err.Error() != unauthorizedErr {
@@ -232,7 +229,6 @@ func TestTransportWS_OnError(t *testing.T) {
 }
 
 func TestTransportWS_ResetClient(t *testing.T) {
-
 	stop := make(chan bool)
 	client, subscriptionClient := hasura_setupClients(SubscriptionsTransportWS)
 	msg := randomID()

@@ -51,6 +51,8 @@ const (
 	StatusInvalidMessage websocket.StatusCode = 4400
 	// if the connection is not acknowledged, the socket will be closed immediately with the event 4401: Unauthorized
 	StatusUnauthorized websocket.StatusCode = 4401
+	// if the connection is unauthorized and be rejected by the server.
+	StatusForbidden websocket.StatusCode = 4403
 	// Connection initialisation timeout
 	StatusConnectionInitialisationTimeout websocket.StatusCode = 4408
 	// Subscriber for <generated-id> already exists
@@ -142,7 +144,8 @@ type SubscriptionContext struct {
 
 	connectionInitAt      time.Time
 	lastReceivedMessageAt time.Time
-	acknowledged          int32
+	acknowledged          bool
+	closed                bool
 	cancel                context.CancelFunc
 	subscriptions         map[string]Subscription
 	mutex                 sync.Mutex
@@ -304,23 +307,46 @@ func (sc *SubscriptionContext) SetSubscription(key string, sub *Subscription) {
 
 // GetAcknowledge get the acknowledge status
 func (sc *SubscriptionContext) GetAcknowledge() bool {
-	return atomic.LoadInt32(&sc.acknowledged) > 0
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	return sc.acknowledged
 }
 
 // SetAcknowledge set the acknowledge status
 func (sc *SubscriptionContext) SetAcknowledge(value bool) {
-	if value {
-		atomic.StoreInt32(&sc.acknowledged, 1)
-	} else {
-		atomic.StoreInt32(&sc.acknowledged, 0)
-	}
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	sc.acknowledged = value
+}
+
+// IsClosed get the closed status
+func (sc *SubscriptionContext) IsClosed() bool {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	return sc.closed
+}
+
+// SetAcknowledge set the acknowledge status
+func (sc *SubscriptionContext) SetClosed(value bool) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	sc.closed = value
 }
 
 // Close closes the context and the inner websocket connection if exists
 func (sc *SubscriptionContext) Close() error {
+	if sc.IsClosed() {
+		return nil
+	}
+
 	var err error
+	sc.SetClosed(true)
+
 	if conn := sc.GetWebsocketConn(); conn != nil {
-		sc.SetWebsocketConn(nil)
 		if sc.client.onDisconnected != nil {
 			sc.client.onDisconnected()
 		}
@@ -375,7 +401,6 @@ func (sc *SubscriptionContext) init(parentContext context.Context) error {
 				return nil
 			} else {
 				_ = conn.Close()
-				sc.SetWebsocketConn(nil)
 			}
 		}
 
@@ -995,8 +1020,12 @@ func (sc *SubscriptionClient) Unsubscribe(id string) error {
 	delete(sc.rawSubscriptions, id)
 	sc.mutex.Unlock()
 
+	if currentSession == nil {
+		return nil
+	}
+
 	sessionSub := currentSession.GetSubscription(id)
-	if currentSession == nil || sessionSub == nil || sessionSub.status == SubscriptionUnsubscribed {
+	if sessionSub == nil || sessionSub.status == SubscriptionUnsubscribed {
 		return nil
 	}
 
@@ -1126,7 +1155,9 @@ func (sc *SubscriptionClient) IsStatusSubscriberAlreadyExists(err error) bool {
 
 // IsUnauthorized checks if the input error is unauthorized.
 func (sc *SubscriptionClient) IsUnauthorized(err error) bool {
-	return sc.GetWebSocketStatusCode(err) == StatusUnauthorized
+	statusCode := sc.GetWebSocketStatusCode(err)
+
+	return statusCode == StatusUnauthorized || statusCode == StatusForbidden
 }
 
 // GetWebSocketStatusCode gets the status code of the Websocket error.
@@ -1144,10 +1175,6 @@ func (sc *SubscriptionClient) GetWebSocketStatusCode(err error) websocket.Status
 
 // Close closes all subscription channel and websocket as well
 func (sc *SubscriptionClient) Close() (err error) {
-	sc.mutex.Lock()
-	sc.rawSubscriptions = map[string]Subscription{}
-	sc.mutex.Unlock()
-
 	return sc.close(sc.getCurrentSession())
 }
 
@@ -1165,15 +1192,14 @@ func (sc *SubscriptionClient) close(session *SubscriptionContext) (err error) {
 		return
 	}
 
+	sc.setCurrentSession(nil)
 	unsubscribeErrors := make(map[string]error)
-
 	conn := session.GetWebsocketConn()
 	if conn == nil {
 		return
 	}
 
 	for key, sub := range session.GetSubscriptions() {
-		session.SetSubscription(key, nil)
 		if sub.status == SubscriptionRunning {
 			if err := sc.protocol.Unsubscribe(session, sub); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.Canceled) {
 				unsubscribeErrors[key] = err
