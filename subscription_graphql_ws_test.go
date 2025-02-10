@@ -156,7 +156,7 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	defer subscriptionClient.Close()
 
 	// wait until the subscription client connects to the server
-	if err := waitHasuraService(60); err != nil {
+	if err := waitHasuraService(120); err != nil {
 		t.Fatalf("failed to start hasura service: %s", err)
 	}
 
