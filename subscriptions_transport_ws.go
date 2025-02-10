@@ -110,7 +110,6 @@ func (stw *subscriptionsTransportWS) Unsubscribe(ctx *SubscriptionContext, sub S
 
 // OnMessage listens ongoing messages from server
 func (stw *subscriptionsTransportWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) error {
-
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", GQLError)

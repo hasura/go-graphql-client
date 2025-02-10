@@ -82,7 +82,6 @@ func (gws *graphqlWS) Unsubscribe(ctx *SubscriptionContext, sub Subscription) er
 
 // OnMessage listens ongoing messages from server
 func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) error {
-
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", message.Type)

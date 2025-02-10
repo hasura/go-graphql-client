@@ -13,37 +13,40 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 **Note**: Before v0.8.0, `QueryRaw`, `MutateRaw`, and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
 
 - [go-graphql-client](#go-graphql-client)
-  - [Installation](#installation)
-  - [Usage](#usage)
-    - [Authentication](#authentication)
-    - [Simple Query](#simple-query)
-    - [Arguments and Variables](#arguments-and-variables)
-    - [Custom scalar tag](#custom-scalar-tag)
-    - [Skip GraphQL field](#skip-graphql-field)
-    - [Inline Fragments](#inline-fragments)
-    - [Specify GraphQL type name](#specify-graphql-type-name)
-    - [Mutations](#mutations)
-      - [Mutations Without Fields](#mutations-without-fields)
-    - [Subscription](#subscription)
-      - [Usage](#usage-1)
-      - [Subscribe](#subscribe)
-      - [Stop the subscription](#stop-the-subscription)
-      - [Authentication](#authentication-1)
-      - [Options](#options)
-      - [Subscription Protocols](#subscription-protocols)
-      - [Handle connection error](#handle-connection-error)
-      - [Events](#events)
-      - [Custom HTTP Client](#custom-http-client)
-      - [Custom WebSocket client](#custom-websocket-client)
-    - [Options](#options-1)
-    - [Execute pre-built query](#execute-pre-built-query)
-    - [With operation name (deprecated)](#with-operation-name-deprecated)
-    - [Raw bytes response](#raw-bytes-response)
-    - [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
-    - [Debugging and Unit test](#debugging-and-unit-test)
-  - [Directories](#directories)
-  - [References](#references)
-  - [License](#license)
+	- [Installation](#installation)
+	- [Usage](#usage)
+		- [Authentication](#authentication)
+		- [Simple Query](#simple-query)
+		- [Arguments and Variables](#arguments-and-variables)
+		- [Custom scalar tag](#custom-scalar-tag)
+		- [Skip GraphQL field](#skip-graphql-field)
+		- [Inline Fragments](#inline-fragments)
+		- [Specify GraphQL type name](#specify-graphql-type-name)
+		- [Mutations](#mutations)
+			- [Mutations Without Fields](#mutations-without-fields)
+		- [Subscription](#subscription)
+			- [Usage](#usage-1)
+			- [Subscribe](#subscribe)
+			- [Stop the subscription](#stop-the-subscription)
+			- [Authentication](#authentication-1)
+			- [Options](#options)
+			- [Subscription Protocols](#subscription-protocols)
+			- [Handle connection error](#handle-connection-error)
+				- [Connection Initialisation Timeout](#connection-initialisation-timeout)
+				- [WebSocket Connection Idle Timeout](#websocket-connection-idle-timeout)
+			- [Events](#events)
+			- [Custom HTTP Client](#custom-http-client)
+			- [Custom WebSocket client](#custom-websocket-client)
+		- [Options](#options-1)
+		- [Execute pre-built query](#execute-pre-built-query)
+		- [Get extensions from response](#get-extensions-from-response)
+		- [With operation name (deprecated)](#with-operation-name-deprecated)
+		- [Raw bytes response](#raw-bytes-response)
+		- [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
+		- [Debugging and Unit test](#debugging-and-unit-test)
+	- [Directories](#directories)
+	- [References](#references)
+	- [License](#license)
 
 ## Installation
 
@@ -627,12 +630,55 @@ GraphQL servers can define custom WebSocket error codes in the 3000-4999 range. 
 ```go
 client := graphql.NewSubscriptionClient(serverEndpoint).
   OnError(func(sc *graphql.SubscriptionClient, err error) error {
-  	if strings.Contains(err.Error(), "invalid x-hasura-admin-secret/x-hasura-access-key") {
+  	if sc.IsUnauthorized(err) || strings.Contains(err.Error(), "invalid x-hasura-admin-secret/x-hasura-access-key") {
 			// exit the subscription client due to unauthorized error
   		return err
   	}
-		// otherwise ignore the error and the client continues to run
+
+		if sc.IsInternalConnectionError(err) {
+			return err
+		}
+
+		// otherwise ignore the error and the client will restart.
   	return nil
+  })
+```
+
+##### Connection Initialisation Timeout
+
+The connection initialisation timeout error happens when the subscription client emitted the `ConnectionInit` event but hasn't received any message for a long duration. The default timeout is a minute. You can adjust the timeout by calling the `WithConnectionInitialisationTimeout` method. This error is disabled if the timeout duration is `0`.
+
+```go
+client := graphql.NewSubscriptionClient(serverEndpoint).
+	WithConnectionInitialisationTimeout(2*time.Minute).
+  OnError(func(sc *graphql.SubscriptionClient, err error) error {
+  	if sc.IsConnectionInitialisationTimeout(err) {
+			// restart the client
+  		return nil
+  	}
+
+		// catch other errors...
+
+		return err
+  })
+```
+
+##### WebSocket Connection Idle Timeout
+
+This error happens if the websocket connection idle timeout duration is larger than `0` and the subscription client doesn't receive any message from the server, include keep-alive message for a long duration. The setting is disabled by default and can be configured by the `WithWebsocketConnectionIdleTimeout` method.
+
+```go
+client := graphql.NewSubscriptionClient(serverEndpoint).
+	WithWebsocketConnectionIdleTimeout(time.Minute).
+  OnError(func(sc *graphql.SubscriptionClient, err error) error {
+  	if sc.IsWebsocketConnectionIdleTimeout(err) {
+			// restart the client
+  		return nil
+  	}
+
+		// catch other errors...
+
+		return err
   })
 ```
 
@@ -736,6 +782,7 @@ client.Query(ctx context.Context, q interface{}, variables map[string]interface{
 ```
 
 Currently, there are 3 option types:
+
 - `operation_name`
 - `operation_directive`
 - `bind_extensions`
@@ -982,11 +1029,11 @@ Because the GraphQL query string is generated in runtime using reflection, it is
 
 ## Directories
 
-| Path                                                                                   | Synopsis                                                                                                        |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                               |
+| Path                                                                                   | Synopsis                                                                                                         |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                                |
 | [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming conventions. |
-| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                     |
+| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                      |
 
 ## References
 

@@ -75,12 +75,14 @@ const (
 )
 
 var (
-	// ErrSubscriptionStopped a special error which forces the subscription stop
+	// ErrSubscriptionStopped a special error which forces the subscription stop.
 	ErrSubscriptionStopped = errors.New("subscription stopped")
-	// ErrSubscriptionNotExists an error denoting that subscription does not exist
+	// ErrSubscriptionNotExists an error denoting that subscription does not exist.
 	ErrSubscriptionNotExists = errors.New("subscription does not exist")
-
-	errRetry = errors.New("retry subscription client")
+	// ErrWebsocketConnectionIdleTimeout indicates that the websocket connection has not received any new messages for a long interval.
+	ErrWebsocketConnectionIdleTimeout = errors.New("websocket connection idle timeout")
+	// errRestartSubscriptionClient an error to ask the subscription client to restart.
+	errRestartSubscriptionClient = errors.New("restart subscription client")
 )
 
 // OperationMessage represents a subscription operation message
@@ -189,22 +191,6 @@ func (sc *SubscriptionContext) OnSubscriptionComplete(subscription Subscription)
 	}
 }
 
-// GetContext get the inner context
-func (sc *SubscriptionContext) GetContext() context.Context {
-	sc.mutex.Lock()
-	defer sc.mutex.Unlock()
-	return sc.Context
-}
-
-// GetContext set the inner context
-func (sc *SubscriptionContext) NewContext() {
-	sc.mutex.Lock()
-	defer sc.mutex.Unlock()
-	ctx, cancel := context.WithCancel(context.Background())
-	sc.Context = ctx
-	sc.cancel = cancel
-}
-
 // SetCancel set the cancel function of the inner context
 func (sc *SubscriptionContext) Cancel() {
 	sc.mutex.Lock()
@@ -231,11 +217,32 @@ func (sc *SubscriptionContext) SetWebsocketConn(conn WebsocketConn) {
 	sc.websocketConn = conn
 }
 
+func (sc *SubscriptionContext) getConnectionInitAt() time.Time {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	return sc.connectionInitAt
+}
+
+func (sc *SubscriptionContext) setConnectionInitAt(t time.Time) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	sc.connectionInitAt = t
+}
+
 func (sc *SubscriptionContext) setLastReceivedMessageAt(t time.Time) {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
 
 	sc.lastReceivedMessageAt = t
+}
+
+func (sc *SubscriptionContext) getLastReceivedMessageAt() time.Time {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	return sc.lastReceivedMessageAt
 }
 
 // GetSubscription get the subscription state by id
@@ -408,7 +415,7 @@ func (sc *SubscriptionContext) run() {
 			if err := conn.ReadJSON(&message); err != nil {
 				// manual EOF check
 				if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
-					sc.client.errorChan <- errRetry
+					sc.client.errorChan <- errRestartSubscriptionClient
 
 					return
 				}
@@ -422,37 +429,31 @@ func (sc *SubscriptionContext) run() {
 				for _, retryCode := range sc.client.retryStatusCodes {
 					if (len(retryCode) == 1 && retryCode[0] == closeStatus) ||
 						(len(retryCode) >= 2 && retryCode[0] <= closeStatus && closeStatus <= retryCode[1]) {
-						sc.client.errorChan <- errRetry
+						sc.client.errorChan <- errRestartSubscriptionClient
 
 						return
 					}
+				}
+
+				if closeStatus < 0 {
+					sc.Log(err, "server", GQL_CONNECTION_ERROR)
+					continue
 				}
 
 				switch websocket.StatusCode(closeStatus) {
-				case websocket.StatusBadGateway, websocket.StatusNoStatusRcvd:
-					sc.client.errorChan <- errRetry
-					return
+				case websocket.StatusBadGateway, websocket.StatusNoStatusRcvd, websocket.StatusServiceRestart, websocket.StatusTryAgainLater, websocket.StatusMessageTooBig, websocket.StatusInvalidFramePayloadData:
+					sc.Log(err, "server", GQL_CONNECTION_ERROR)
+					sc.client.errorChan <- errRestartSubscriptionClient
 				case websocket.StatusNormalClosure, websocket.StatusAbnormalClosure:
 					// close event from websocket client, exiting...
-					sc.Cancel()
-					return
-				case websocket.StatusInternalError, StatusInvalidMessage, StatusConnectionInitialisationTimeout, StatusTooManyInitialisationRequests, StatusSubscriberAlreadyExists, StatusUnauthorized:
+					sc.client.close(sc)
+				default:
+					// let the user to handle unknown errors manually.
 					sc.Log(err, "server", GQL_CONNECTION_ERROR)
 					sc.client.errorChan <- err
-
-					return
 				}
 
-				if sc.client.onError != nil {
-					if err = sc.client.onError(sc.client, err); err != nil {
-						// end the subscription if the callback return error
-						sc.Cancel()
-
-						return
-					}
-				}
-
-				continue
+				return
 			}
 
 			sc.setLastReceivedMessageAt(time.Now())
@@ -491,7 +492,7 @@ func (sc *SubscriptionContext) startWebsocketKeepAlive(c WebsocketConn, interval
 			err := c.Ping()
 			if err != nil {
 				sc.Log("Failed to ping server", "client", GQLInternal)
-				sc.client.errorChan <- errRetry
+				sc.client.errorChan <- errRestartSubscriptionClient
 
 				return
 			}
@@ -573,15 +574,16 @@ type SubscriptionClient struct {
 	readLimit                       int64 // max size of response message. Default 10 MB
 	retryTimeout                    time.Duration
 	connectionInitialisationTimeout time.Duration
+	websocketConnectionIdleTimeout  time.Duration
+	websocketKeepAliveInterval      time.Duration
+	retryDelay                      time.Duration
 
-	exitWhenNoSubscription     bool
-	syncMode                   bool
-	websocketKeepAliveInterval time.Duration
-	retryDelay                 time.Duration
-	disabledLogTypes           []OperationMessageType
-	log                        func(args ...interface{})
-	retryStatusCodes           [][]int32
-	rawSubscriptions           map[string]Subscription
+	exitWhenNoSubscription bool
+	syncMode               bool
+	disabledLogTypes       []OperationMessageType
+	log                    func(args ...interface{})
+	retryStatusCodes       [][]int32
+	rawSubscriptions       map[string]Subscription
 
 	// user-defined callback events
 	onConnected            func()
@@ -600,16 +602,17 @@ func NewSubscriptionClient(url string) *SubscriptionClient {
 	protocol := &subscriptionsTransportWS{}
 
 	return &SubscriptionClient{
-		url:                        url,
-		readLimit:                  10 * 1024 * 1024, // set default limit 10MB
-		createConn:                 newWebsocketConn,
-		retryTimeout:               time.Minute,
-		errorChan:                  make(chan error),
-		protocol:                   protocol,
-		exitWhenNoSubscription:     true,
-		websocketKeepAliveInterval: 0,
-		retryDelay:                 1 * time.Second,
-		rawSubscriptions:           make(map[string]Subscription),
+		url:                             url,
+		readLimit:                       10 * 1024 * 1024, // set default limit 10MB
+		createConn:                      newWebsocketConn,
+		retryTimeout:                    time.Minute,
+		connectionInitialisationTimeout: time.Minute,
+		errorChan:                       make(chan error),
+		protocol:                        protocol,
+		exitWhenNoSubscription:          true,
+		websocketKeepAliveInterval:      0,
+		retryDelay:                      1 * time.Second,
+		rawSubscriptions:                make(map[string]Subscription),
 		websocketOptions: WebsocketOptions{
 			Subprotocols: protocol.GetSubprotocols(),
 			ReadTimeout:  time.Minute,
@@ -656,12 +659,7 @@ func (sc *SubscriptionClient) GetSubscriptions() map[string]Subscription {
 		return sc.getCurrentSession().GetSubscriptions()
 	}
 
-	newMap := make(map[string]Subscription)
-	for k, v := range sc.rawSubscriptions {
-		newMap[k] = v
-	}
-
-	return newMap
+	return sc.getRawSubscriptions()
 }
 
 // GetSubscription get the subscription state by id
@@ -671,12 +669,7 @@ func (sc *SubscriptionClient) GetSubscription(id string) *Subscription {
 		return sc.getCurrentSession().GetSubscription(id)
 	}
 
-	sub, ok := sc.rawSubscriptions[id]
-	if !ok {
-		return nil
-	}
-
-	return &sub
+	return sc.getRawSubscription(id)
 }
 
 // WithWebSocket replaces customized websocket client constructor
@@ -776,22 +769,32 @@ func (sc *SubscriptionClient) WithConnectionInitialisationTimeout(timeout time.D
 	return sc
 }
 
+// WithWebsocketConnectionIdleTimeout updates for the websocket connection idle timeout.
+func (sc *SubscriptionClient) WithWebsocketConnectionIdleTimeout(timeout time.Duration) *SubscriptionClient {
+	sc.websocketConnectionIdleTimeout = timeout
+
+	return sc
+}
+
 // WithRetryTimeout updates reconnecting timeout. When the websocket server was stopped, the client will retry connecting every second until timeout
 // The zero value means unlimited timeout
 func (sc *SubscriptionClient) WithRetryTimeout(timeout time.Duration) *SubscriptionClient {
 	sc.retryTimeout = timeout
+
 	return sc
 }
 
 // WithExitWhenNoSubscription the client should exit when all subscriptions were closed
 func (sc *SubscriptionClient) WithExitWhenNoSubscription(value bool) *SubscriptionClient {
 	sc.exitWhenNoSubscription = value
+
 	return sc
 }
 
 // WithSyncMode subscription messages are executed in sequence (without goroutine)
 func (sc *SubscriptionClient) WithSyncMode(value bool) *SubscriptionClient {
 	sc.syncMode = value
+
 	return sc
 }
 
@@ -813,6 +816,7 @@ func (sc *SubscriptionClient) WithWebSocketKeepAlive(interval time.Duration) *Su
 // WithRetryDelay set the delay time before retrying the connection
 func (sc *SubscriptionClient) WithRetryDelay(delay time.Duration) *SubscriptionClient {
 	sc.retryDelay = delay
+
 	return sc
 }
 
@@ -855,30 +859,35 @@ func (sc *SubscriptionClient) WithRetryStatusCodes(codes ...string) *Subscriptio
 // If returns error, the websocket connection will be terminated
 func (sc *SubscriptionClient) OnError(onError func(sc *SubscriptionClient, err error) error) *SubscriptionClient {
 	sc.onError = onError
+
 	return sc
 }
 
 // OnConnected event is triggered when the websocket connected to GraphQL server successfully
 func (sc *SubscriptionClient) OnConnected(fn func()) *SubscriptionClient {
 	sc.onConnected = fn
+
 	return sc
 }
 
 // OnDisconnected event is triggered when the websocket client was disconnected
 func (sc *SubscriptionClient) OnDisconnected(fn func()) *SubscriptionClient {
 	sc.onDisconnected = fn
+
 	return sc
 }
 
 // OnConnectionAlive event is triggered when the websocket receive a connection alive message (differs per protocol)
 func (sc *SubscriptionClient) OnConnectionAlive(fn func()) *SubscriptionClient {
 	sc.onConnectionAlive = fn
+
 	return sc
 }
 
 // OnSubscriptionComplete event is triggered when the subscription receives a terminated message from the server
 func (sc *SubscriptionClient) OnSubscriptionComplete(fn func(sub Subscription)) *SubscriptionClient {
 	sc.onSubscriptionComplete = fn
+
 	return sc
 }
 
@@ -984,15 +993,11 @@ func (sc *SubscriptionClient) wrapHandler(fn handlerFunc) func(data []byte, err 
 // Unsubscribe sends stop message to server and close subscription channel
 // The input parameter is subscription ID that is returned from Subscribe function
 func (sc *SubscriptionClient) Unsubscribe(id string) error {
-	sc.mutex.Lock()
-
-	_, ok := sc.rawSubscriptions[id]
-	if !ok {
-		sc.mutex.Unlock()
-
+	if sc.getRawSubscription(id) == nil {
 		return fmt.Errorf("%s: %w", id, ErrSubscriptionNotExists)
 	}
 
+	sc.mutex.Lock()
 	currentSession := sc.currentSession
 	delete(sc.rawSubscriptions, id)
 	sc.mutex.Unlock()
@@ -1013,43 +1018,6 @@ func (sc *SubscriptionClient) Unsubscribe(id string) error {
 	sc.checkSubscriptionStatuses(currentSession)
 
 	return err
-}
-
-// create a new subscription context to start a new session
-func (sc *SubscriptionClient) initNewSession(ctx context.Context) (*SubscriptionContext, error) {
-	// make sure that the current session was closed
-	currentSession := sc.getCurrentSession()
-	if currentSession != nil {
-		_ = currentSession.Close()
-	}
-
-	subContext := &SubscriptionContext{
-		client:        sc,
-		subscriptions: make(map[string]Subscription),
-	}
-
-	for key, sub := range sc.rawSubscriptions {
-		newSubscription := sub.Clone()
-		subContext.SetSubscription(key, &newSubscription)
-	}
-
-	if err := subContext.init(ctx); err != nil {
-		return nil, fmt.Errorf("retry timeout, %w", err)
-	}
-
-	conn := subContext.GetWebsocketConn()
-	if conn == nil {
-		return nil, fmt.Errorf("the websocket connection hasn't been created")
-	}
-
-	if sc.websocketKeepAliveInterval > 0 {
-		go subContext.startWebsocketKeepAlive(conn, sc.websocketKeepAliveInterval)
-	}
-
-	sc.setCurrentSession(subContext)
-	sc.setClientStatus(scStatusRunning)
-
-	return subContext, nil
 }
 
 // Run start the WebSocket client and subscriptions.
@@ -1091,7 +1059,7 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 				return sc.close(subContext)
 			}
 
-			if !errors.Is(e, errRetry) && sc.onError != nil {
+			if !errors.Is(e, errRestartSubscriptionClient) && sc.onError != nil {
 				// if the user manually catch the error to decide if it can be retried.
 				if err := sc.onError(sc, e); err != nil {
 					sc.close(subContext)
@@ -1114,20 +1082,78 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 				continue
 			}
 
-			if sc.connectionInitialisationTimeout > 0 && !session.GetAcknowledge() &&
-				time.Since(session.connectionInitAt) > sc.connectionInitialisationTimeout {
+			isAcknowledge := session.GetAcknowledge()
+			if sc.connectionInitialisationTimeout > 0 && !isAcknowledge &&
+				time.Since(session.getConnectionInitAt()) > sc.connectionInitialisationTimeout {
 				sc.errorChan <- &websocket.CloseError{
 					Code:   StatusConnectionInitialisationTimeout,
 					Reason: "Connection initialisation timeout",
 				}
+
+				continue
+			}
+
+			if sc.websocketConnectionIdleTimeout > 0 && isAcknowledge &&
+				time.Since(session.getLastReceivedMessageAt()) > sc.websocketConnectionIdleTimeout {
+				sc.errorChan <- ErrWebsocketConnectionIdleTimeout
 			}
 		}
 	}
 }
 
+// IsWebsocketConnectionIdleTimeout checks if the input error is ErrWebsocketConnectionIdleTimeout.
+func (sc *SubscriptionClient) IsWebsocketConnectionIdleTimeout(err error) bool {
+	return errors.Is(err, ErrWebsocketConnectionIdleTimeout)
+}
+
+// IsConnectionInitialisationTimeoutError checks if the input error is ConnectionInitialisationTimeout.
+func (sc *SubscriptionClient) IsConnectionInitialisationTimeout(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == StatusConnectionInitialisationTimeout
+}
+
+// IsInternalConnectionError checks if the input error is an internal error status.
+func (sc *SubscriptionClient) IsInternalConnectionError(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == websocket.StatusInternalError
+}
+
+// IsInvalidMessageError checks if the input error is an invalid message status.
+func (sc *SubscriptionClient) IsInvalidMessageError(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == StatusInvalidMessage
+}
+
+// IsTooManyInitialisationRequests checks if the input error has a TooManyInitialisationRequests status.
+func (sc *SubscriptionClient) IsTooManyInitialisationRequests(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == StatusTooManyInitialisationRequests
+}
+
+// IsStatusSubscriberAlreadyExists checks if the input error has a SubscriberAlreadyExists status.
+func (sc *SubscriptionClient) IsStatusSubscriberAlreadyExists(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == StatusSubscriberAlreadyExists
+}
+
+// IsUnauthorized checks if the input error is unauthorized.
+func (sc *SubscriptionClient) IsUnauthorized(err error) bool {
+	return sc.GetWebSocketStatusCode(err) == StatusUnauthorized
+}
+
+// GetWebSocketStatusCode gets the status code of the Websocket error.
+func (sc *SubscriptionClient) GetWebSocketStatusCode(err error) websocket.StatusCode {
+	session := sc.getCurrentSession()
+	if session != nil {
+		conn := sc.currentSession.GetWebsocketConn()
+		if conn != nil {
+			return websocket.StatusCode(conn.GetCloseStatus(err))
+		}
+	}
+
+	return websocket.CloseStatus(err)
+}
+
 // Close closes all subscription channel and websocket as well
 func (sc *SubscriptionClient) Close() (err error) {
+	sc.mutex.Lock()
 	sc.rawSubscriptions = map[string]Subscription{}
+	sc.mutex.Unlock()
 
 	return sc.close(sc.getCurrentSession())
 }
@@ -1177,6 +1203,66 @@ func (sc *SubscriptionClient) close(session *SubscriptionContext) (err error) {
 	}
 
 	return nil
+}
+
+// create a new subscription context to start a new session
+func (sc *SubscriptionClient) initNewSession(ctx context.Context) (*SubscriptionContext, error) {
+	// make sure that the current session was closed
+	currentSession := sc.getCurrentSession()
+	if currentSession != nil {
+		_ = currentSession.Close()
+	}
+
+	subContext := &SubscriptionContext{
+		client:        sc,
+		subscriptions: make(map[string]Subscription),
+	}
+
+	for key, sub := range sc.getRawSubscriptions() {
+		newSubscription := sub.Clone()
+		subContext.SetSubscription(key, &newSubscription)
+	}
+
+	if err := subContext.init(ctx); err != nil {
+		return nil, fmt.Errorf("retry timeout, %w", err)
+	}
+
+	conn := subContext.GetWebsocketConn()
+	if conn == nil {
+		return nil, fmt.Errorf("the websocket connection hasn't been created")
+	}
+
+	if sc.websocketKeepAliveInterval > 0 {
+		go subContext.startWebsocketKeepAlive(conn, sc.websocketKeepAliveInterval)
+	}
+
+	sc.setCurrentSession(subContext)
+	sc.setClientStatus(scStatusRunning)
+
+	return subContext, nil
+}
+
+func (sc *SubscriptionClient) getRawSubscription(id string) *Subscription {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	if sub, ok := sc.rawSubscriptions[id]; ok {
+		return &sub
+	}
+
+	return nil
+}
+
+func (sc *SubscriptionClient) getRawSubscriptions() map[string]Subscription {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	result := make(map[string]Subscription)
+	for key, sub := range sc.rawSubscriptions {
+		result[key] = sub
+	}
+
+	return result
 }
 
 func (sc *SubscriptionClient) checkSubscriptionStatuses(session *SubscriptionContext) {
