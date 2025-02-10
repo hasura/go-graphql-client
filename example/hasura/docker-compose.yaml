@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgrespassword
 
   hasura:
-    image: hasura/graphql-engine:v2.45.1.cli-migrations-v3
+    image: hasura/graphql-engine:v2.16.1.cli-migrations-v3
     depends_on:
       - "postgres"
     ports:
