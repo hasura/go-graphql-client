@@ -399,12 +399,16 @@ func (sc *SubscriptionContext) init(parentContext context.Context) error {
 				sc.cancel = cancel
 
 				return nil
-			} else {
-				_ = conn.Close()
 			}
+
+			_ = conn.Close()
 		}
 
 		cancel()
+
+		if errors.Is(err, context.Canceled) {
+			return err
+		}
 
 		if sc.client.retryTimeout > 0 && now.Add(sc.client.retryTimeout).Before(time.Now()) {
 			sc.OnDisconnected()
@@ -1094,6 +1098,10 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 			// the client also automatically retries the connection.
 			subContext, err := sc.initNewSession(ctx)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
+
 				return err
 			}
 
