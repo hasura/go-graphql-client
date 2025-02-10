@@ -224,13 +224,6 @@ func (sc *SubscriptionContext) getConnectionInitAt() time.Time {
 	return sc.connectionInitAt
 }
 
-func (sc *SubscriptionContext) setConnectionInitAt(t time.Time) {
-	sc.mutex.Lock()
-	defer sc.mutex.Unlock()
-
-	sc.connectionInitAt = t
-}
-
 func (sc *SubscriptionContext) setLastReceivedMessageAt(t time.Time) {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
