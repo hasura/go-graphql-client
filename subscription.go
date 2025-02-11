@@ -1238,6 +1238,7 @@ func (sc *SubscriptionClient) initNewSession(ctx context.Context) (*Subscription
 	currentSession := sc.getCurrentSession()
 	if currentSession != nil {
 		_ = currentSession.Close()
+		time.Sleep(sc.retryDelay)
 	}
 
 	subContext := &SubscriptionContext{
