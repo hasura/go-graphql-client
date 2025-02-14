@@ -55,7 +55,7 @@ type bindResponseHeadersOption struct {
 }
 
 func (ono bindResponseHeadersOption) Type() OptionType {
-	return "bind_extensions"
+	return "bind_response_headers"
 }
 
 // BindExtensionsBindResponseHeaders bind the header response to the pointer

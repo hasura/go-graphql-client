@@ -40,6 +40,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
     - [Options](#options-1)
     - [Execute pre-built query](#execute-pre-built-query)
     - [Get extensions from response](#get-extensions-from-response)
+    - [Get headers from response](#get-headers-from-response)
     - [With operation name (deprecated)](#with-operation-name-deprecated)
     - [Raw bytes response](#raw-bytes-response)
     - [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
@@ -753,11 +754,12 @@ type Option interface {
 client.Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error
 ```
 
-Currently, there are 3 option types:
+Currently, there are 4 option types:
 
 - `operation_name`
 - `operation_directive`
 - `bind_extensions`
+- `bind_response_headers`
 
 The operation name option is built-in because it is unique. We can use the option directly with `OperationName`.
 
@@ -880,6 +882,21 @@ if err != nil {
 
 // You can now use the `extensions` variable to access the extensions data
 fmt.Println("Extensions:", extensions)
+```
+
+### Get headers from response
+
+Use the `BindResponseHeaders` option to bind headers from the response.
+
+```go
+headers := http.Header{}
+err := client.Query(context.TODO(), &q, map[string]any{}, graphql.BindResponseHeaders(&headers))
+if err != nil {
+  panic(err)
+}
+
+fmt.Println(headers.Get("content-type"))
+// application/json
 ```
 
 ### With operation name (deprecated)

@@ -20,16 +20,6 @@ const (
 	hasuraTestAdminSecret = "hasura"
 )
 
-type headerRoundTripper struct {
-	setHeaders func(req *http.Request)
-	rt         http.RoundTripper
-}
-
-func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	h.setHeaders(req)
-	return h.rt.RoundTrip(req)
-}
-
 type user_insert_input map[string]interface{}
 
 func hasura_setupClients(protocol SubscriptionProtocolType) (*Client, *SubscriptionClient) {
