@@ -503,7 +503,8 @@ func TestClient_BindExtensions(t *testing.T) {
 		t.Fatalf("got q.User.Name: %q, want: %q", got, want)
 	}
 
-	err = client.Query(context.Background(), &q, map[string]interface{}{}, graphql.BindExtensions(&ext))
+	headers := http.Header{}
+	err = client.Query(context.Background(), &q, map[string]interface{}{}, graphql.BindExtensions(&ext), graphql.BindResponseHeaders(&headers))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -518,11 +519,22 @@ func TestClient_BindExtensions(t *testing.T) {
 	if got, want := ext.Domain, "users"; got != want {
 		t.Errorf("got ext.Domain: %q, want: %q", got, want)
 	}
+
+	if len(headers) != 1 {
+		t.Error("got empty headers, want 1")
+	}
+
+	if got, want := headers.Get("content-type"), "application/json"; got != want {
+		t.Errorf("got headers[content-type]: %q, want: %s", got, want)
+	}
 }
 
 // Test exec pre-built query, return raw json string and map
 // with extensions
 func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
+	testResponseHeader := "X-Test-Response"
+	testResponseHeaderValue := "graphql"
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
 		body := mustRead(req.Body)
@@ -530,6 +542,7 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 			t.Errorf("got body: %v, want %v", got, want)
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(testResponseHeader, testResponseHeaderValue)
 		mustWrite(w, `{"data": {"user": {"name": "Gopher"}}, "extensions": {"id": 1, "domain": "users"}}`)
 	})
 	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
@@ -539,7 +552,8 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 		Domain string `json:"domain"`
 	}
 
-	_, extensions, err := client.ExecRawWithExtensions(context.Background(), "{user{id,name}}", map[string]interface{}{})
+	headers := http.Header{}
+	_, extensions, err := client.ExecRawWithExtensions(context.Background(), "{user{id,name}}", map[string]interface{}{}, graphql.BindResponseHeaders(&headers))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,6 +572,14 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 	}
 	if got, want := ext.Domain, "users"; got != want {
 		t.Errorf("got ext.Domain: %q, want: %q", got, want)
+	}
+
+	if len(headers) != 2 {
+		t.Error("got empty headers, want 2")
+	}
+
+	if headerValue := headers.Get(testResponseHeader); headerValue != testResponseHeaderValue {
+		t.Errorf("got headers[%s]: %q, want: %s", testResponseHeader, headerValue, testResponseHeaderValue)
 	}
 }
 

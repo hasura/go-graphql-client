@@ -16,6 +16,8 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
   - [Installation](#installation)
   - [Usage](#usage)
     - [Authentication](#authentication)
+      - [WithRequestModifier](#withrequestmodifier)
+      - [OAuth2](#oauth2)
     - [Simple Query](#simple-query)
     - [Arguments and Variables](#arguments-and-variables)
     - [Custom scalar tag](#custom-scalar-tag)
@@ -37,6 +39,7 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
       - [Custom WebSocket client](#custom-websocket-client)
     - [Options](#options-1)
     - [Execute pre-built query](#execute-pre-built-query)
+    - [Get extensions from response](#get-extensions-from-response)
     - [With operation name (deprecated)](#with-operation-name-deprecated)
     - [Raw bytes response](#raw-bytes-response)
     - [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
@@ -67,7 +70,22 @@ client := graphql.NewClient("https://example.com/graphql", nil)
 
 ### Authentication
 
-Some GraphQL servers may require authentication. The `graphql` package does not directly handle authentication. Instead, when creating a new client, you're expected to pass an `http.Client` that performs authentication. The easiest and recommended way to do this is to use the [`golang.org/x/oauth2`](https://golang.org/x/oauth2) package. You'll need an OAuth token with the right scopes. Then:
+Some GraphQL servers may require authentication. The `graphql` package does not directly handle authentication. Instead, when creating a new client, you're expected to pass an `http.Client` that performs authentication.
+
+#### WithRequestModifier
+
+Use `WithRequestModifier` method to inject headers into the request before sending to the GraphQL server.
+
+```go
+client := graphql.NewClient(endpoint, http.DefaultClient).
+  WithRequestModifier(func(r *http.Request) {
+	  r.Header.Set("Authorization", "random-token")
+  })
+```
+
+#### OAuth2
+
+The easiest and recommended way to do this is to use the [`golang.org/x/oauth2`](https://golang.org/x/oauth2) package. You'll need an OAuth token with the right scopes. Then:
 
 ```Go
 import "golang.org/x/oauth2"
@@ -736,6 +754,7 @@ client.Query(ctx context.Context, q interface{}, variables map[string]interface{
 ```
 
 Currently, there are 3 option types:
+
 - `operation_name`
 - `operation_directive`
 - `bind_extensions`
@@ -982,11 +1001,11 @@ Because the GraphQL query string is generated in runtime using reflection, it is
 
 ## Directories
 
-| Path                                                                                   | Synopsis                                                                                                        |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                               |
+| Path                                                                                   | Synopsis                                                                                                         |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [example/graphqldev](https://godoc.org/github.com/shurcooL/graphql/example/graphqldev) | graphqldev is a test program currently being used for developing graphql package.                                |
 | [ident](https://godoc.org/github.com/shurcooL/graphql/ident)                           | Package ident provides functions for parsing and converting identifier names between various naming conventions. |
-| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                     |
+| [internal/jsonutil](https://godoc.org/github.com/shurcooL/graphql/internal/jsonutil)   | Package jsonutil provides a function for decoding JSON into a GraphQL query data structure.                      |
 
 ## References
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
@@ -17,6 +18,7 @@ type constructOptionsOutput struct {
 	operationName       string
 	operationDirectives []string
 	extensions          any
+	headers             *http.Header
 }
 
 func (coo constructOptionsOutput) OperationDirectivesString() string {
@@ -36,6 +38,8 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 			output.operationName = opt.name
 		case bindExtensionsOption:
 			output.extensions = opt.value
+		case bindResponseHeadersOption:
+			output.headers = opt.value
 		default:
 			if opt.Type() != OptionTypeOperationDirective {
 				return nil, fmt.Errorf("invalid query option type: %s", option.Type())
