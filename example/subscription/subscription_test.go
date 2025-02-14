@@ -556,3 +556,69 @@ func TestSubscription_LifeCycleEvents(t *testing.T) {
 func TestSubscription_WithSyncMode(t *testing.T) {
 	testSubscription_LifeCycleEvents(t, true)
 }
+
+func TestTransportWS_ConnectionIdleTimeout(t *testing.T) {
+	server := subscription_setupServer(8081)
+	_, subscriptionClient := subscription_setupClients(8081)
+	msg := randomID()
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer func() {
+		_ = server.Shutdown(ctx)
+	}()
+	defer cancel()
+
+	subscriptionClient.
+		WithWebsocketConnectionIdleTimeout(2 * time.Second).
+		OnError(func(sc *gql.SubscriptionClient, err error) error {
+			return err
+		})
+
+	/*
+		subscription {
+			helloSaid {
+				id
+				msg
+			}
+		}
+	*/
+	var sub struct {
+		HelloSaid struct {
+			ID      gql.String
+			Message gql.String `graphql:"msg" json:"msg"`
+		} `graphql:"helloSaid" json:"helloSaid"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		log.Println("result", string(data))
+		e = json.Unmarshal(data, &sub)
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+
+		if sub.HelloSaid.Message != gql.String(msg) {
+			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+		}
+
+		return errors.New("exit")
+	})
+
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	if err := subscriptionClient.Run(); err == nil || !errors.Is(err, gql.ErrWebsocketConnectionIdleTimeout) {
+		t.Errorf("got error: %v, want: %s", err, gql.ErrWebsocketConnectionIdleTimeout)
+	}
+}

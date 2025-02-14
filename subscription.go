@@ -153,17 +153,7 @@ type SubscriptionContext struct {
 
 // Log prints condition logging with message type filters
 func (sc *SubscriptionContext) Log(message interface{}, source string, opType OperationMessageType) {
-	if sc.client.log == nil {
-		return
-	}
-
-	for _, ty := range sc.client.disabledLogTypes {
-		if ty == opType {
-			return
-		}
-	}
-
-	sc.client.log(message, source)
+	sc.client.printLog(message, source, opType)
 }
 
 // OnConnectionAlive executes the OnConnectionAlive callback if exists.
@@ -437,6 +427,7 @@ func (sc *SubscriptionContext) run() {
 			if err := conn.ReadJSON(&message); err != nil {
 				// manual EOF check
 				if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
+					sc.Log(err.Error(), "client", GQLConnectionError)
 					sc.client.errorChan <- errRestartSubscriptionClient
 
 					return
@@ -1071,6 +1062,42 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 
 	go subContext.run()
 
+	if sc.connectionInitialisationTimeout > 0 || sc.websocketConnectionIdleTimeout > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Second)
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					session := sc.getCurrentSession()
+					if session == nil {
+						continue
+					}
+
+					isAcknowledge := session.GetAcknowledge()
+					if sc.connectionInitialisationTimeout > 0 && !isAcknowledge &&
+						time.Since(session.getConnectionInitAt()) > sc.connectionInitialisationTimeout {
+						sc.printLog("Connection initialisation timeout", "client", GQLInternal)
+						sc.errorChan <- &websocket.CloseError{
+							Code:   StatusConnectionInitialisationTimeout,
+							Reason: "Connection initialisation timeout",
+						}
+
+						continue
+					}
+
+					if sc.websocketConnectionIdleTimeout > 0 && isAcknowledge &&
+						time.Since(session.getLastReceivedMessageAt()) > sc.websocketConnectionIdleTimeout {
+						sc.printLog(ErrWebsocketConnectionIdleTimeout.Error(), "client", GQLInternal)
+						sc.errorChan <- ErrWebsocketConnectionIdleTimeout
+					}
+				}
+			}
+		}()
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -1106,27 +1133,6 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 			}
 
 			go subContext.run()
-		default:
-			session := sc.getCurrentSession()
-			if session == nil {
-				continue
-			}
-
-			isAcknowledge := session.GetAcknowledge()
-			if sc.connectionInitialisationTimeout > 0 && !isAcknowledge &&
-				time.Since(session.getConnectionInitAt()) > sc.connectionInitialisationTimeout {
-				sc.errorChan <- &websocket.CloseError{
-					Code:   StatusConnectionInitialisationTimeout,
-					Reason: "Connection initialisation timeout",
-				}
-
-				continue
-			}
-
-			if sc.websocketConnectionIdleTimeout > 0 && isAcknowledge &&
-				time.Since(session.getLastReceivedMessageAt()) > sc.websocketConnectionIdleTimeout {
-				sc.errorChan <- ErrWebsocketConnectionIdleTimeout
-			}
 		}
 	}
 }
@@ -1302,6 +1308,21 @@ func (sc *SubscriptionClient) checkSubscriptionStatuses(session *SubscriptionCon
 		session.Log("no running subscription. exiting...", "client", GQLInternal)
 		sc.close(session)
 	}
+}
+
+// prints condition logging with message type filters
+func (sc *SubscriptionClient) printLog(message interface{}, source string, opType OperationMessageType) {
+	if sc.log == nil {
+		return
+	}
+
+	for _, ty := range sc.disabledLogTypes {
+		if ty == opType {
+			return
+		}
+	}
+
+	sc.log(message, source)
 }
 
 // the reusable function for sending connection init message.
