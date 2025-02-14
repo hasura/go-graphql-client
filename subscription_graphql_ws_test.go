@@ -20,26 +20,14 @@ const (
 	hasuraTestAdminSecret = "hasura"
 )
 
-type headerRoundTripper struct {
-	setHeaders func(req *http.Request)
-	rt         http.RoundTripper
-}
-
-func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	h.setHeaders(req)
-	return h.rt.RoundTrip(req)
-}
-
 type user_insert_input map[string]interface{}
 
 func hasura_setupClients(protocol SubscriptionProtocolType) (*Client, *SubscriptionClient) {
 	endpoint := fmt.Sprintf("%s/v1/graphql", hasuraTestHost)
-	client := NewClient(endpoint, &http.Client{Transport: headerRoundTripper{
-		setHeaders: func(req *http.Request) {
-			req.Header.Set("x-hasura-admin-secret", hasuraTestAdminSecret)
-		},
-		rt: http.DefaultTransport,
-	}})
+	client := NewClient(endpoint, http.DefaultClient).
+		WithRequestModifier(func(r *http.Request) {
+			r.Header.Set("x-hasura-admin-secret", hasuraTestAdminSecret)
+		})
 
 	subscriptionClient := NewSubscriptionClient(endpoint).
 		WithProtocol(protocol).

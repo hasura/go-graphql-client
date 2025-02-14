@@ -13,40 +13,43 @@ For more information, see package [`github.com/shurcooL/githubv4`](https://githu
 **Note**: Before v0.8.0, `QueryRaw`, `MutateRaw`, and `Subscribe` methods return `*json.RawMessage`. This output type is redundant to be decoded. From v0.8.0, the output type is changed to `[]byte`.
 
 - [go-graphql-client](#go-graphql-client)
-	- [Installation](#installation)
-	- [Usage](#usage)
-		- [Authentication](#authentication)
-		- [Simple Query](#simple-query)
-		- [Arguments and Variables](#arguments-and-variables)
-		- [Custom scalar tag](#custom-scalar-tag)
-		- [Skip GraphQL field](#skip-graphql-field)
-		- [Inline Fragments](#inline-fragments)
-		- [Specify GraphQL type name](#specify-graphql-type-name)
-		- [Mutations](#mutations)
-			- [Mutations Without Fields](#mutations-without-fields)
-		- [Subscription](#subscription)
-			- [Usage](#usage-1)
-			- [Subscribe](#subscribe)
-			- [Stop the subscription](#stop-the-subscription)
-			- [Authentication](#authentication-1)
-			- [Options](#options)
-			- [Subscription Protocols](#subscription-protocols)
-			- [Handle connection error](#handle-connection-error)
-				- [Connection Initialisation Timeout](#connection-initialisation-timeout)
-				- [WebSocket Connection Idle Timeout](#websocket-connection-idle-timeout)
-			- [Events](#events)
-			- [Custom HTTP Client](#custom-http-client)
-			- [Custom WebSocket client](#custom-websocket-client)
-		- [Options](#options-1)
-		- [Execute pre-built query](#execute-pre-built-query)
-		- [Get extensions from response](#get-extensions-from-response)
-		- [With operation name (deprecated)](#with-operation-name-deprecated)
-		- [Raw bytes response](#raw-bytes-response)
-		- [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
-		- [Debugging and Unit test](#debugging-and-unit-test)
-	- [Directories](#directories)
-	- [References](#references)
-	- [License](#license)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Authentication](#authentication)
+      - [WithRequestModifier](#withrequestmodifier)
+      - [OAuth2](#oauth2)
+    - [Simple Query](#simple-query)
+    - [Arguments and Variables](#arguments-and-variables)
+    - [Custom scalar tag](#custom-scalar-tag)
+    - [Skip GraphQL field](#skip-graphql-field)
+    - [Inline Fragments](#inline-fragments)
+    - [Specify GraphQL type name](#specify-graphql-type-name)
+    - [Mutations](#mutations)
+      - [Mutations Without Fields](#mutations-without-fields)
+    - [Subscription](#subscription)
+      - [Usage](#usage-1)
+      - [Subscribe](#subscribe)
+      - [Stop the subscription](#stop-the-subscription)
+      - [Authentication](#authentication-1)
+      - [Options](#options)
+      - [Subscription Protocols](#subscription-protocols)
+      - [Handle connection error](#handle-connection-error)
+        - [Connection Initialisation Timeout](#connection-initialisation-timeout)
+        - [WebSocket Connection Idle Timeout](#websocket-connection-idle-timeout)
+      - [Events](#events)
+      - [Custom HTTP Client](#custom-http-client)
+      - [Custom WebSocket client](#custom-websocket-client)
+    - [Options](#options-1)
+    - [Execute pre-built query](#execute-pre-built-query)
+    - [Get extensions from response](#get-extensions-from-response)
+    - [Get headers from response](#get-headers-from-response)
+    - [With operation name (deprecated)](#with-operation-name-deprecated)
+    - [Raw bytes response](#raw-bytes-response)
+    - [Multiple mutations with ordered map](#multiple-mutations-with-ordered-map)
+    - [Debugging and Unit test](#debugging-and-unit-test)
+  - [Directories](#directories)
+  - [References](#references)
+  - [License](#license)
 
 ## Installation
 
@@ -70,7 +73,22 @@ client := graphql.NewClient("https://example.com/graphql", nil)
 
 ### Authentication
 
-Some GraphQL servers may require authentication. The `graphql` package does not directly handle authentication. Instead, when creating a new client, you're expected to pass an `http.Client` that performs authentication. The easiest and recommended way to do this is to use the [`golang.org/x/oauth2`](https://golang.org/x/oauth2) package. You'll need an OAuth token with the right scopes. Then:
+Some GraphQL servers may require authentication. The `graphql` package does not directly handle authentication. Instead, when creating a new client, you're expected to pass an `http.Client` that performs authentication.
+
+#### WithRequestModifier
+
+Use `WithRequestModifier` method to inject headers into the request before sending to the GraphQL server.
+
+```go
+client := graphql.NewClient(endpoint, http.DefaultClient).
+  WithRequestModifier(func(r *http.Request) {
+	  r.Header.Set("Authorization", "random-token")
+  })
+```
+
+#### OAuth2
+
+The easiest and recommended way to do this is to use the [`golang.org/x/oauth2`](https://golang.org/x/oauth2) package. You'll need an OAuth token with the right scopes. Then:
 
 ```Go
 import "golang.org/x/oauth2"
@@ -781,11 +799,12 @@ type Option interface {
 client.Query(ctx context.Context, q interface{}, variables map[string]interface{}, options ...Option) error
 ```
 
-Currently, there are 3 option types:
+Currently, there are 4 option types:
 
 - `operation_name`
 - `operation_directive`
 - `bind_extensions`
+- `bind_response_headers`
 
 The operation name option is built-in because it is unique. We can use the option directly with `OperationName`.
 
@@ -908,6 +927,21 @@ if err != nil {
 
 // You can now use the `extensions` variable to access the extensions data
 fmt.Println("Extensions:", extensions)
+```
+
+### Get headers from response
+
+Use the `BindResponseHeaders` option to bind headers from the response.
+
+```go
+headers := http.Header{}
+err := client.Query(context.TODO(), &q, map[string]any{}, graphql.BindResponseHeaders(&headers))
+if err != nil {
+  panic(err)
+}
+
+fmt.Println(headers.Get("content-type"))
+// application/json
 ```
 
 ### With operation name (deprecated)

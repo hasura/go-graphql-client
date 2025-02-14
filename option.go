@@ -1,5 +1,7 @@
 package graphql
 
+import "net/http"
+
 // OptionType represents the logic of graphql query construction
 type OptionType string
 
@@ -45,4 +47,18 @@ func (ono bindExtensionsOption) Type() OptionType {
 // BindExtensions bind the struct pointer to decode extensions from json response
 func BindExtensions(value any) Option {
 	return bindExtensionsOption{value: value}
+}
+
+// bind the struct pointer to return headers from response
+type bindResponseHeadersOption struct {
+	value *http.Header
+}
+
+func (ono bindResponseHeadersOption) Type() OptionType {
+	return "bind_response_headers"
+}
+
+// BindExtensionsBindResponseHeaders bind the header response to the pointer
+func BindResponseHeaders(value *http.Header) Option {
+	return bindResponseHeadersOption{value: value}
 }

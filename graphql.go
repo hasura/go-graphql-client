@@ -163,9 +163,19 @@ func (c *Client) request(ctx context.Context, query string, variables map[string
 		if c.debug {
 			e = e.withRequest(request, reqReader)
 		}
+
 		return nil, nil, nil, nil, Errors{e}
 	}
+
 	defer resp.Body.Close()
+
+	if options != nil && options.headers != nil {
+		for key, values := range resp.Header {
+			for _, value := range values {
+				options.headers.Add(key, value)
+			}
+		}
+	}
 
 	r := resp.Body
 
@@ -350,6 +360,7 @@ func (c *Client) WithRequestModifier(f RequestModifier) *Client {
 		url:             c.url,
 		httpClient:      c.httpClient,
 		requestModifier: f,
+		debug:           c.debug,
 	}
 }
 
