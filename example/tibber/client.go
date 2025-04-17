@@ -48,7 +48,8 @@ func startSubscription() error {
 			HTTPClient: &http.Client{
 				Transport: headerRoundTripper{
 					setHeaders: func(req *http.Request) {
-						req.Header.Set("User-Agent", "go-graphql-client/0.9.0")
+						// Replace MyHomeAutomationPlatformReplaceMe/1.3.4 with a name that describes where you are running this client on
+						req.Header.Set("User-Agent", "MyHomeAutomationPlatformReplaceMe/1.2.3 hasura/go-graphql-client/0.13.1")
 					},
 					rt: http.DefaultTransport,
 				},
