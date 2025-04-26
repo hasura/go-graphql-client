@@ -312,7 +312,9 @@ func (c *Client) getRetryDelay(resp *http.Response, attempts int) time.Duration 
 		// A non-negative decimal integer indicating the seconds to delay after the response is received.
 		retryAfterSecs, err := strconv.ParseInt(rawRetryAfter, 10, 32)
 		if err == nil && retryAfterSecs > 0 {
-			return time.Duration(math.Max(float64(int64(time.Second)*retryAfterSecs), float64(c.retryBaseDelay)))
+			return time.Duration(
+				math.Max(float64(int64(time.Second)*retryAfterSecs), float64(c.retryBaseDelay)),
+			)
 		}
 
 		// A date after which to retry, e.g. Tue, 29 Oct 2024 16:56:32 GMT

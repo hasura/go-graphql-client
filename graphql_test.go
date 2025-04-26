@@ -790,7 +790,12 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 	expectedLatency := time.Duration(1.5 * float64(time.Second))
 	expectedLatencyMax := expectedLatency + time.Duration(0.5*float64(time.Second))
 	if latency < expectedLatency || latency > expectedLatencyMax {
-		t.Errorf("latency must be in between %s < %s, got %s", expectedLatency, expectedLatencyMax, latency)
+		t.Errorf(
+			"latency must be in between %s < %s, got %s",
+			expectedLatency,
+			expectedLatencyMax,
+			latency,
+		)
 	}
 }
 
@@ -849,7 +854,12 @@ func TestClientOption_WithRetryAfter(t *testing.T) {
 	expectedLatency := time.Duration(2 * time.Second)
 	expectedLatencyMax := expectedLatency + time.Duration(0.5*float64(time.Second))
 	if latency < expectedLatency || latency > expectedLatencyMax {
-		t.Errorf("latency must be in between %s < %s, got %s", expectedLatency, expectedLatencyMax, latency)
+		t.Errorf(
+			"latency must be in between %s < %s, got %s",
+			expectedLatency,
+			expectedLatencyMax,
+			latency,
+		)
 	}
 }
 
@@ -932,7 +942,8 @@ func TestClient_Query_retryGraphQLError(t *testing.T) {
 		&http.Client{Transport: localRoundTripper{handler: mux}},
 		graphql.WithRetry(maxAttempts-1),
 		graphql.WithRetryOnGraphQLError(func(errs graphql.Errors) bool {
-			return len(errs) == 1 && errs[0].Message == "Field 'user' is missing required arguments: login"
+			return len(errs) == 1 &&
+				errs[0].Message == "Field 'user' is missing required arguments: login"
 		}),
 	)
 
