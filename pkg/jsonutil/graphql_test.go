@@ -622,7 +622,7 @@ func TestUnmarshalGraphQL_arrayInsideInlineFragment(t *testing.T) {
 					} `graphql:"commits(last: 1)"`
 				} `graphql:"... on PullRequest"`
 			}
-		} `graphql:"search(type: ISSUE, first: 1, query: "type:pr repo:owner/name")"`
+		} `graphql:"search(type: ISSUE, first: 1, query: \"type:pr repo:owner/name\")"`
 	}
 	var got query
 	err := jsonutil.UnmarshalGraphQL([]byte(`{
