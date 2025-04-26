@@ -1,6 +1,7 @@
 package graphql_test
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -673,6 +674,7 @@ func mustRead(r io.Reader) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return string(b)
 }
 
@@ -732,9 +734,12 @@ func TestClientOption_WithRetry_succeed(t *testing.T) {
 
 func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 	var (
-		attempts    int
-		maxAttempts = 2
+		attempts             int
+		maxAttempts          = 3
+		retryBase            = time.Second / 2
+		retryExponentialRate = 2.0
 	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
 		attempts++
@@ -749,6 +754,8 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 			},
 		},
 		graphql.WithRetry(maxAttempts-1),
+		graphql.WithRetryBaseDelay(retryBase),
+		graphql.WithRetryExponentialRate(retryExponentialRate),
 	)
 
 	var q struct {
@@ -757,11 +764,13 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 		}
 	}
 
+	start := time.Now()
 	err := client.Query(context.Background(), &q, nil)
 	if err == nil {
 		t.Fatal("got nil, want error")
 	}
 
+	latency := time.Now().Sub(start)
 	// Check that we got the max retries exceeded error
 	var gqlErrs graphql.Errors
 	if !errors.As(err, &gqlErrs) {
@@ -775,6 +784,12 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 	// First request does not count
 	if attempts != maxAttempts {
 		t.Errorf("got %d attempts, want %d", attempts, maxAttempts)
+	}
+
+	expectedLatency := time.Duration(1.5 * float64(time.Second))
+	expectedLatencyMax := expectedLatency + time.Duration(0.5*float64(time.Second))
+	if latency < expectedLatency || latency > expectedLatencyMax {
+		t.Errorf("latency must be in between %s < %s, got %s", expectedLatency, expectedLatencyMax, latency)
 	}
 }
 
@@ -824,5 +839,98 @@ func TestClientOption_WithRetry_shouldNotRetry(t *testing.T) {
 	// Should not retry on permanent URL errors
 	if attempts != 1 {
 		t.Errorf("got %d attempts, want 1", attempts)
+	}
+}
+
+func TestClient_Query_retryGraphQLError(t *testing.T) {
+	var (
+		attempts    int
+		maxAttempts = 3
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		attempts++
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{
+			"errors": [
+				{
+					"message": "Field 'user' is missing required arguments: login",
+					"locations": [
+						{
+							"line": 7,
+							"column": 3
+						}
+					]
+				}
+			]
+		}`)
+	})
+
+	client := graphql.NewClient(
+		"/graphql",
+		&http.Client{Transport: localRoundTripper{handler: mux}},
+		graphql.WithRetry(maxAttempts-1),
+		graphql.WithRetryOnGraphQLError(func(errs graphql.Errors) bool {
+			return len(errs) == 1 && errs[0].Message == "Field 'user' is missing required arguments: login"
+		}),
+	)
+
+	var q struct {
+		User struct {
+			Name string
+		}
+	}
+
+	err := client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got error: nil, want: non-nil")
+	}
+
+	if got, want := err.Error(), "Message: Field 'user' is missing required arguments: login, Locations: [{Line:7 Column:3}], Extensions: map[], Path: []"; got != want {
+		t.Errorf("got error: %v, want: %v", got, want)
+	}
+	if q.User.Name != "" {
+		t.Errorf("got non-empty q.User.Name: %v", q.User.Name)
+	}
+
+	if attempts != maxAttempts {
+		t.Errorf("got %d attempts, want %d", attempts, maxAttempts)
+	}
+}
+
+func TestClient_Query_Compression(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Encoding", "gzip")
+
+		gw := gzip.NewWriter(w)
+		_, err := gw.Write([]byte(`{"data": {"user": {"name": "Gopher"}}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		gw.Close()
+	})
+
+	client := graphql.NewClient(
+		"/graphql",
+		&http.Client{Transport: localRoundTripper{handler: mux}},
+	)
+
+	var q struct {
+		User struct {
+			Name string
+		}
+	}
+
+	err := client.Query(context.Background(), &q, nil)
+	if err != nil {
+		t.Fatalf("want: nil, got: %s", err)
+	}
+
+	if q.User.Name != "Gopher" {
+		t.Errorf("got invalid q.User.Name: %v, want: Gopher", q.User.Name)
 	}
 }
