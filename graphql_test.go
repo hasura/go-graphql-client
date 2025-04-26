@@ -756,6 +756,7 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 		graphql.WithRetry(maxAttempts-1),
 		graphql.WithRetryBaseDelay(retryBase),
 		graphql.WithRetryExponentialRate(retryExponentialRate),
+		graphql.WithRetryHTTPStatus([]int{http.StatusServiceUnavailable}),
 	)
 
 	var q struct {
@@ -787,6 +788,65 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 	}
 
 	expectedLatency := time.Duration(1.5 * float64(time.Second))
+	expectedLatencyMax := expectedLatency + time.Duration(0.5*float64(time.Second))
+	if latency < expectedLatency || latency > expectedLatencyMax {
+		t.Errorf("latency must be in between %s < %s, got %s", expectedLatency, expectedLatencyMax, latency)
+	}
+}
+
+func TestClientOption_WithRetryAfter(t *testing.T) {
+	var (
+		attempts    int
+		maxAttempts = 2
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		attempts++
+		w.Header().Add("Retry-After", "2")
+
+		// Always fail with a temporary error
+		http.Error(w, "temporary error", http.StatusServiceUnavailable)
+	})
+
+	client := graphql.NewClient("/graphql",
+		&http.Client{
+			Transport: localRoundTripper{
+				handler: mux,
+			},
+		},
+		graphql.WithRetry(maxAttempts-1),
+	)
+
+	var q struct {
+		User struct {
+			Name string
+		}
+	}
+
+	start := time.Now()
+	err := client.Query(context.Background(), &q, nil)
+	if err == nil {
+		t.Fatal("got nil, want error")
+	}
+
+	latency := time.Now().Sub(start)
+	// Check that we got the max retries exceeded error
+	var gqlErrs graphql.Errors
+	if !errors.As(err, &gqlErrs) {
+		t.Fatalf("got %T, want graphql.Errors", err)
+	}
+
+	if len(gqlErrs) != 1 {
+		t.Fatalf("got %d, want 1 error", len(gqlErrs))
+	}
+
+	// First request does not count
+	if attempts != maxAttempts {
+		t.Errorf("got %d attempts, want %d", attempts, maxAttempts)
+	}
+
+	expectedLatency := time.Duration(2 * time.Second)
 	expectedLatencyMax := expectedLatency + time.Duration(0.5*float64(time.Second))
 	if latency < expectedLatency || latency > expectedLatencyMax {
 		t.Errorf("latency must be in between %s < %s, got %s", expectedLatency, expectedLatencyMax, latency)

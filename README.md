@@ -490,6 +490,29 @@ fmt.Printf("Created a review: %s.\n", m.CreateReview)
 // Created a review: .
 ```
 
+### Retry Options
+
+Construct the client with the following options:
+
+```go
+client := graphql.NewClient("/graphql", http.DefaultClient,
+	// number of retries
+	graphql.WithRetry(3),
+	// base backoff interval. Optional, default 1 second.
+	// Prioritize the Retry-After header if it exists in the response.
+	graphql.WithRetryBaseDelay(time.Second),
+	// exponential rate. Optional, default 2.0
+	graphql.WithRetryExponentialRate(2),
+	// retry on http statuses. Optional, default: 429, 502, 503, 504
+	graphql.WithRetryHTTPStatus([]int{http.StatusServiceUnavailable}),
+	// if the http status is 200 but the graphql response is error, 
+	// use this option to check if the error is retryable.
+	graphql.WithRetryOnGraphQLError(func(errs graphql.Errors) bool {
+		return len(errs) == 1 && errs[0].Message == "Field 'user' is missing required arguments: login"
+	}),
+)
+```
+
 ### Subscription
 
 #### Usage

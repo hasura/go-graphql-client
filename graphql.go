@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -293,15 +294,39 @@ func (c *Client) doHttpRequest(ctx context.Context, body io.ReadSeeker) *rawGrap
 			}
 		}
 
-		delay := time.Duration(
-			float64(c.retryBaseDelay) * math.Pow(c.retryExponentialRate, float64(attempt)),
-		)
-		time.Sleep(delay)
+		time.Sleep(c.getRetryDelay(resp, attempt))
 	}
 
 	return &rawGraphQLResult{
 		Errors: Errors{newError(ErrRequestError, errors.New("unreachable code"))},
 	}
+}
+
+// The HTTP [Retry-After] response header indicates how long the user agent should wait before making a follow-up request.
+// The client finds this header if exist and decodes to duration.
+// If the header doesn't exist or there is any error happened, fallback to the retry delay setting.
+//
+// [Retry-After]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After
+func (c *Client) getRetryDelay(resp *http.Response, attempts int) time.Duration {
+	if rawRetryAfter := resp.Header.Get("Retry-After"); rawRetryAfter != "" {
+		// A non-negative decimal integer indicating the seconds to delay after the response is received.
+		retryAfterSecs, err := strconv.ParseInt(rawRetryAfter, 10, 32)
+		if err == nil && retryAfterSecs > 0 {
+			return time.Duration(math.Max(float64(int64(time.Second)*retryAfterSecs), float64(c.retryBaseDelay)))
+		}
+
+		// A date after which to retry, e.g. Tue, 29 Oct 2024 16:56:32 GMT
+		retryTime, err := time.Parse(time.RFC1123, rawRetryAfter)
+		if err == nil && retryTime.After(time.Now()) {
+			duration := time.Until(retryTime)
+
+			return time.Duration(math.Max(float64(duration), float64(c.retryBaseDelay)))
+		}
+	}
+
+	return time.Duration(
+		float64(c.retryBaseDelay) * math.Pow(c.retryExponentialRate, float64(attempts)),
+	)
 }
 
 func (c *Client) decodeRawGraphQLResponse(
