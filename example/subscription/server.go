@@ -50,7 +50,6 @@ func init() {
 }
 
 func startServer() {
-
 	// init graphQL schema
 	s, err := graphql.ParseSchema(schema, newResolver())
 	if err != nil {
@@ -158,7 +157,7 @@ func (r *helloSaidEvent) ID() string {
 }
 
 func randomID() string {
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	letter := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 	b := make([]rune, 16)
 	for i := range b {

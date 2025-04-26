@@ -29,28 +29,32 @@ const (
 	GQLComplete OperationMessageType = "complete"
 )
 
-type graphqlWS struct {
-}
+type graphqlWS struct{}
 
-// GetSubprotocols returns subprotocol names of the subscription transport
+// GetSubprotocols returns subprotocol names of the subscription transport.
 func (gws graphqlWS) GetSubprotocols() []string {
 	return []string{"graphql-transport-ws"}
 }
 
-// ConnectionInit sends a initial request to establish a connection within the existing socket
-func (gws *graphqlWS) ConnectionInit(ctx *SubscriptionContext, connectionParams map[string]interface{}) error {
+// ConnectionInit sends a initial request to establish a connection within the existing socket.
+func (gws *graphqlWS) ConnectionInit(
+	ctx *SubscriptionContext,
+	connectionParams map[string]interface{},
+) error {
 	return connectionInit(ctx, connectionParams)
 }
 
-// Subscribe requests an graphql operation specified in the payload message
+// Subscribe requests an graphql operation specified in the payload message.
 func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, sub Subscription) error {
 	if sub.GetStatus() == SubscriptionRunning {
 		return nil
 	}
+
 	payload, err := json.Marshal(sub.GetPayload())
 	if err != nil {
 		return err
 	}
+
 	// send start message to the server
 	msg := OperationMessage{
 		ID:      sub.id,
@@ -68,8 +72,7 @@ func (gws *graphqlWS) Subscribe(ctx *SubscriptionContext, sub Subscription) erro
 	return nil
 }
 
-// Unsubscribe sends stop message to server and close subscription channel
-// The input parameter is subscription ID that is returned from Subscribe function
+// The input parameter is subscription ID that is returned from Subscribe function.
 func (gws *graphqlWS) Unsubscribe(ctx *SubscriptionContext, sub Subscription) error {
 	// send stop message to the server
 	msg := OperationMessage{
@@ -80,27 +83,36 @@ func (gws *graphqlWS) Unsubscribe(ctx *SubscriptionContext, sub Subscription) er
 	return ctx.Send(msg, GQLComplete)
 }
 
-// OnMessage listens ongoing messages from server
-func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscription, message OperationMessage) error {
+// OnMessage listens ongoing messages from server.
+func (gws *graphqlWS) OnMessage(
+	ctx *SubscriptionContext,
+	subscription Subscription,
+	message OperationMessage,
+) error {
 	switch message.Type {
 	case GQLError:
 		ctx.Log(message, "server", message.Type)
 		var errs Errors
+
 		jsonErr := json.Unmarshal(message.Payload, &errs)
 		if jsonErr != nil {
 			subscription.handler(nil, fmt.Errorf("%s", string(message.Payload)))
-			return nil
+
+			return nil //nolint:nilerr
 		}
+
 		if len(errs) > 0 {
 			subscription.handler(nil, errs)
+
 			return nil
 		}
 	case GQLNext:
 		ctx.Log(message, "server", message.Type)
 		var out struct {
-			Data   *json.RawMessage
-			Errors Errors
+			Data   *json.RawMessage `json:"data"`
+			Errors Errors           `json:"errors"`
 		}
+
 		if subscription.handler == nil {
 			return nil
 		}
@@ -108,10 +120,13 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 		err := json.Unmarshal(message.Payload, &out)
 		if err != nil {
 			subscription.handler(nil, err)
+
 			return nil
 		}
+
 		if len(out.Errors) > 0 {
 			subscription.handler(nil, out.Errors)
+
 			return nil
 		}
 
@@ -150,9 +165,20 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 		// The client is now ready to request subscription operations.
 		ctx.Log(message, "server", GQLConnectionAck)
 		ctx.SetAcknowledge(true)
+
 		for id, sub := range ctx.GetSubscriptions() {
 			if err := gws.Subscribe(ctx, sub); err != nil {
-				ctx.Log(fmt.Sprintf("failed to subscribe: %s; id: %s; query: %s", err, id, sub.payload.Query), "client", GQLInternal)
+				ctx.Log(
+					fmt.Sprintf(
+						"failed to subscribe: %s; id: %s; query: %s",
+						err,
+						id,
+						sub.payload.Query,
+					),
+					"client",
+					GQLInternal,
+				)
+
 				return nil
 			}
 		}
@@ -165,7 +191,7 @@ func (gws *graphqlWS) OnMessage(ctx *SubscriptionContext, subscription Subscript
 	return nil
 }
 
-// Close terminates all subscriptions of the current websocket
+// Close terminates all subscriptions of the current websocket.
 func (gws *graphqlWS) Close(conn *SubscriptionContext) error {
 	return nil
 }

@@ -91,7 +91,6 @@ func TestUnmarshalGraphQL_jsonRawTag(t *testing.T) {
 		"Data": { "foo":"bar" },
 		"Another" : "stuff"
         }`), &got)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +120,6 @@ func TestUnmarshalGraphQL_fieldAsScalar(t *testing.T) {
                     "keyB": 3
                 }
         }`), &got)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +216,7 @@ func TestUnmarshalGraphQL_array(t *testing.T) {
 // When unmarshaling into an array, its initial value should be overwritten
 // (rather than appended to).
 func TestUnmarshalGraphQL_arrayReset(t *testing.T) {
-	var got = []string{"initial"}
+	got := []string{"initial"}
 	err := jsonutil.UnmarshalGraphQL([]byte(`["bar", "baz"]`), &got)
 	if err != nil {
 		t.Fatal(err)
@@ -624,7 +622,7 @@ func TestUnmarshalGraphQL_arrayInsideInlineFragment(t *testing.T) {
 					} `graphql:"commits(last: 1)"`
 				} `graphql:"... on PullRequest"`
 			}
-		} `graphql:"search(type: ISSUE, first: 1, query: \"type:pr repo:owner/name\")"`
+		} `graphql:"search(type: ISSUE, first: 1, query: "type:pr repo:owner/name")"`
 	}
 	var got query
 	err := jsonutil.UnmarshalGraphQL([]byte(`{

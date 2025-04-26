@@ -49,6 +49,7 @@ func NewFloat(v Float) *Float { return &v }
 // NewID is a helper to make a new *ID.
 func NewID(v interface{}) *ID {
 	rv := ToID(v)
+
 	return &rv
 }
 
@@ -65,7 +66,9 @@ func ToID(v interface{}) ID {
 		}
 	case reflect.String:
 		s = v.(string)
+	default:
 	}
+
 	return ID(s)
 }
 

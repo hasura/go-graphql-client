@@ -21,17 +21,17 @@ import (
 func UnmarshalGraphQL(data []byte, v interface{}) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
+
 	err := (&decoder{tokenizer: dec}).Decode(v)
 	if err != nil {
 		return err
 	}
+
 	tok, err := dec.Token()
-	switch err {
-	case io.EOF:
-		// Expect to get io.EOF. There shouldn't be any more
-		// tokens left after we've decoded v successfully.
+	switch {
+	case errors.Is(err, io.EOF):
 		return nil
-	case nil:
+	case err == nil:
 		return fmt.Errorf("invalid token '%v' after top-level value", tok)
 	default:
 		return err
@@ -74,7 +74,9 @@ func (d *decoder) Decode(v interface{}) error {
 	if rv.Kind() != reflect.Ptr {
 		return fmt.Errorf("cannot decode into non-pointer %T", v)
 	}
+
 	d.vs = []stack{{rv.Elem()}}
+
 	return d.decode()
 }
 
@@ -88,20 +90,20 @@ func (d *decoder) decode() error {
 		var tok interface{}
 		tok, err := d.tokenizer.Token()
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return errors.New("unexpected end of JSON input")
 		} else if err != nil {
 			return err
 		}
 
 		switch {
-
 		// Are we inside an object and seeing next key (rather than end of object)?
 		case d.state() == '{' && tok != json.Delim('}'):
 			key, ok := tok.(string)
 			if !ok {
 				return errors.New("unexpected non-key in JSON input")
 			}
+
 			someFieldExist := false
 			// If one field is raw all must be treated as raw
 			rawMessage := false
@@ -111,7 +113,9 @@ func (d *decoder) decode() error {
 				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
+
 				var f reflect.Value
+
 				switch v.Kind() {
 				case reflect.Struct:
 					f, isScalar = fieldByGraphQLName(v, key)
@@ -127,11 +131,18 @@ func (d *decoder) decode() error {
 					if f.IsValid() {
 						someFieldExist = true
 					}
+				default:
 				}
+
 				d.vs[i] = append(d.vs[i], f)
 			}
+
 			if !someFieldExist {
-				return fmt.Errorf("struct field for %q doesn't exist in any of %v places to unmarshal", key, len(d.vs))
+				return fmt.Errorf(
+					"struct field for %q doesn't exist in any of %v places to unmarshal",
+					key,
+					len(d.vs),
+				)
 			}
 
 			if rawMessage || isScalar {
@@ -141,12 +152,13 @@ func (d *decoder) decode() error {
 				if err != nil {
 					return err
 				}
+
 				tok = data
 			} else {
 				// We've just consumed the current token, which was the key.
 				// Read the next token, which should be the value, and let the rest of code process it.
 				tok, err = d.tokenizer.Token()
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return errors.New("unexpected end of JSON input")
 				} else if err != nil {
 					return err
@@ -161,7 +173,9 @@ func (d *decoder) decode() error {
 				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
+
 				var f reflect.Value
+
 				if v.Kind() == reflect.Slice {
 					// we want to append the template item copy
 					// so that all the inner structure gets preserved
@@ -170,13 +184,16 @@ func (d *decoder) decode() error {
 						if err != nil {
 							return fmt.Errorf("failed to copy template: %w", err)
 						}
+
 						v.Set(reflect.Append(v, copied)) // v = append(v, T).
 						f = v.Index(v.Len() - 1)
 						someSliceExist = true
 					}
 				}
+
 				d.vs[i] = append(d.vs[i], f)
 			}
+
 			if !someSliceExist {
 				return fmt.Errorf("slice doesn't exist in any of %v places to unmarshal", len(d.vs))
 			}
@@ -191,13 +208,13 @@ func (d *decoder) decode() error {
 				if !v.IsValid() {
 					continue
 				}
+
 				err := unmarshalValue(tok, v)
 				if err != nil {
 					return err
 				}
 			}
 			d.popAllVs()
-
 		case json.Delim:
 			switch tok {
 			case '{':
@@ -206,6 +223,7 @@ func (d *decoder) decode() error {
 				d.pushState(tok)
 
 				frontier := make([]reflect.Value, len(d.vs)) // Places to look for GraphQL fragments/embedded structs.
+
 				for i := range d.vs {
 					v := d.vs[i].Top()
 					frontier[i] = v
@@ -214,14 +232,17 @@ func (d *decoder) decode() error {
 						v.Set(reflect.New(v.Type().Elem())) // v = new(T).
 					}
 				}
+
 				// Find GraphQL fragments/embedded structs recursively, adding to frontier
 				// as new ones are discovered and exploring them further.
 				for len(frontier) > 0 {
 					v := frontier[0]
 					frontier = frontier[1:]
+
 					for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 						v = v.Elem()
 					}
+
 					if v.Kind() == reflect.Struct {
 						for i := 0; i < v.NumField(); i++ {
 							if isGraphQLFragment(v.Type().Field(i)) || v.Type().Field(i).Anonymous {
@@ -234,6 +255,7 @@ func (d *decoder) decode() error {
 						for i := 0; i < v.Len(); i++ {
 							pair := v.Index(i)
 							key, val := pair.Index(0), pair.Index(1)
+
 							if keyForGraphQLFragment(key.Interface().(string)) {
 								// Add GraphQL fragment or embedded struct.
 								d.vs = append(d.vs, []reflect.Value{val})
@@ -250,7 +272,7 @@ func (d *decoder) decode() error {
 				for i := range d.vs {
 					v := d.vs[i].Top()
 					// TODO: Confirm this is needed, write a test case.
-					//if v.Kind() == reflect.Ptr && v.IsNil() {
+					// if v.Kind() == reflect.Ptr && v.IsNil() {
 					//	v.Set(reflect.New(v.Type().Elem())) // v = new(T).
 					//}
 
@@ -258,9 +280,11 @@ func (d *decoder) decode() error {
 					for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 						v = v.Elem()
 					}
+
 					if v.Kind() != reflect.Slice {
 						continue
 					}
+
 					newSlice := reflect.MakeSlice(v.Type(), 0, 0) // v = make(T, 0, 0).
 					switch v.Len() {
 					case 0:
@@ -273,6 +297,7 @@ func (d *decoder) decode() error {
 					case 2:
 						return fmt.Errorf("template slice can only have 1 item, got %d", v.Len())
 					}
+
 					v.Set(newSlice)
 				}
 			case '}':
@@ -291,6 +316,7 @@ func (d *decoder) decode() error {
 			return errors.New("unexpected token in JSON input")
 		}
 	}
+
 	return nil
 }
 
@@ -299,9 +325,14 @@ func copyTemplate(template reflect.Value) (reflect.Value, error) {
 		// copy slice if it's actually an ordered map
 		return copyOrderedMap(template), nil
 	}
+
 	if template.Kind() == reflect.Map {
-		return reflect.Value{}, fmt.Errorf("unsupported template type `%v`, use [][2]interface{} for ordered map instead", template.Type())
+		return reflect.Value{}, fmt.Errorf(
+			"unsupported template type `%v`, use [][2]interface{} for ordered map instead",
+			template.Type(),
+		)
 	}
+
 	// don't need to copy regular slice
 	return template, nil
 }
@@ -310,7 +341,9 @@ func isOrderedMap(v reflect.Value) bool {
 	if !v.IsValid() {
 		return false
 	}
+
 	t := v.Type()
+
 	return t.Kind() == reflect.Slice &&
 		t.Elem().Kind() == reflect.Array &&
 		t.Elem().Len() == 2
@@ -322,6 +355,7 @@ func copyOrderedMap(m reflect.Value) reflect.Value {
 		pair := m.Index(i)
 		newMap = reflect.Append(newMap, pair)
 	}
+
 	return newMap
 }
 
@@ -341,18 +375,21 @@ func (d *decoder) state() json.Delim {
 	if len(d.parseState) == 0 {
 		return 0
 	}
+
 	return d.parseState[len(d.parseState)-1]
 }
 
 // popAllVs pops from all d.vs stacks, keeping only non-empty ones.
 func (d *decoder) popAllVs() {
 	var nonEmpty []stack
+
 	for i := range d.vs {
 		d.vs[i] = d.vs[i].Pop()
 		if len(d.vs[i]) > 0 {
 			nonEmpty = append(nonEmpty, d.vs[i])
 		}
 	}
+
 	d.vs = nonEmpty
 }
 
@@ -360,6 +397,7 @@ func (d *decoder) popAllVs() {
 func (d *decoder) popLeftArrayTemplates() {
 	for i := range d.vs {
 		v := d.vs[i].Top()
+
 		if v.IsValid() {
 			v.Set(v.Slice(1, v.Len()))
 		}
@@ -368,16 +406,18 @@ func (d *decoder) popLeftArrayTemplates() {
 
 // fieldByGraphQLName returns an exported struct field of struct v
 // that matches GraphQL name, or invalid reflect.Value if none found.
-func fieldByGraphQLName(v reflect.Value, name string) (val reflect.Value, taggedAsScalar bool) {
+func fieldByGraphQLName(v reflect.Value, name string) (reflect.Value, bool) {
 	for i := 0; i < v.NumField(); i++ {
 		if v.Type().Field(i).PkgPath != "" {
 			// Skip unexported field.
 			continue
 		}
+
 		if hasGraphQLName(v.Type().Field(i), name) {
 			return v.Field(i), hasScalarTag(v.Type().Field(i))
 		}
 	}
+
 	return reflect.Value{}, false
 }
 
@@ -387,10 +427,12 @@ func orderedMapValueByGraphQLName(v reflect.Value, name string) reflect.Value {
 	for i := 0; i < v.Len(); i++ {
 		pair := v.Index(i)
 		key := pair.Index(0).Interface().(string)
+
 		if keyHasGraphQLName(key, name) {
 			return pair.Index(1)
 		}
 	}
+
 	return reflect.Value{}
 }
 
@@ -400,6 +442,7 @@ func hasScalarTag(f reflect.StructField) bool {
 
 func isTrue(s string) bool {
 	b, _ := strconv.ParseBool(s)
+
 	return b
 }
 
@@ -408,9 +451,10 @@ func hasGraphQLName(f reflect.StructField, name string) bool {
 	value, ok := f.Tag.Lookup("graphql")
 	if !ok {
 		// TODO: caseconv package is relatively slow. Optimize it, then consider using it here.
-		//return caseconv.MixedCapsToLowerCamelCase(f.Name) == name
+		// return caseconv.MixedCapsToLowerCamelCase(f.Name) == name
 		return strings.EqualFold(f.Name, name)
 	}
+
 	return keyHasGraphQLName(value, name)
 }
 
@@ -425,6 +469,7 @@ func keyHasGraphQLName(value, name string) bool {
 	if i := strings.IndexAny(value, "(:@"); i != -1 {
 		value = value[:i]
 	}
+
 	return strings.TrimSpace(value) == name
 }
 
@@ -434,12 +479,14 @@ func isGraphQLFragment(f reflect.StructField) bool {
 	if !ok {
 		return false
 	}
+
 	return keyForGraphQLFragment(value)
 }
 
 // isGraphQLFragment reports whether ordered map kv pair f is a GraphQL fragment.
 func keyForGraphQLFragment(value string) bool {
 	value = strings.TrimSpace(value) // TODO: Parse better.
+
 	return strings.HasPrefix(value, "...")
 }
 
@@ -451,18 +498,24 @@ func unmarshalValue(value interface{}, v reflect.Value) error {
 	if err != nil {
 		return err
 	}
+
 	ty := v.Type()
+
 	if ty.Kind() == reflect.Interface {
 		if !v.Elem().IsValid() {
 			return json.Unmarshal(b, v.Addr().Interface())
 		}
 		ty = v.Elem().Type()
 	}
+
 	newVal := reflect.New(ty)
+
 	err = json.Unmarshal(b, newVal.Interface())
 	if err != nil {
 		return err
 	}
+
 	v.Set(newVal.Elem())
+
 	return nil
 }

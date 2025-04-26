@@ -675,19 +675,45 @@ func TestQueryArguments(t *testing.T) {
 			want: "$a:Int!$b:Boolean",
 		},
 		{
-			in:   map[string]interface{}{"a": iVal, "b": i8Val, "c": i16Val, "d": i32Val, "e": i64Val, "f": Int(123)},
+			in: map[string]interface{}{
+				"a": iVal,
+				"b": i8Val,
+				"c": i16Val,
+				"d": i32Val,
+				"e": i64Val,
+				"f": Int(123),
+			},
 			want: "$a:Int!$b:Int!$c:Int!$d:Int!$e:Int!$f:Int!",
 		},
 		{
-			in:   map[string]interface{}{"a": &iVal, "b": &i8Val, "c": &i16Val, "d": &i32Val, "e": &i64Val, "f": NewInt(123)},
+			in: map[string]interface{}{
+				"a": &iVal,
+				"b": &i8Val,
+				"c": &i16Val,
+				"d": &i32Val,
+				"e": &i64Val,
+				"f": NewInt(123),
+			},
 			want: "$a:Int$b:Int$c:Int$d:Int$e:Int$f:Int",
 		},
 		{
-			in:   map[string]interface{}{"a": uiVal, "b": ui8Val, "c": ui16Val, "d": ui32Val, "e": ui64Val},
+			in: map[string]interface{}{
+				"a": uiVal,
+				"b": ui8Val,
+				"c": ui16Val,
+				"d": ui32Val,
+				"e": ui64Val,
+			},
 			want: "$a:Int!$b:Int!$c:Int!$d:Int!$e:Int!",
 		},
 		{
-			in:   map[string]interface{}{"a": &uiVal, "b": &ui8Val, "c": &ui16Val, "d": &ui32Val, "e": &ui64Val},
+			in: map[string]interface{}{
+				"a": &uiVal,
+				"b": &ui8Val,
+				"c": &ui16Val,
+				"d": &ui32Val,
+				"e": &ui64Val,
+			},
 			want: "$a:Int$b:Int$c:Int$d:Int$e:Int",
 		},
 		{
@@ -699,7 +725,14 @@ func TestQueryArguments(t *testing.T) {
 			want: "$a:Float$b:Float$c:Float",
 		},
 		{
-			in:   map[string]interface{}{"a": &bVal, "b": bVal, "c": true, "d": false, "e": Boolean(true), "f": NewBoolean(true)},
+			in: map[string]interface{}{
+				"a": &bVal,
+				"b": bVal,
+				"c": true,
+				"d": false,
+				"e": Boolean(true),
+				"f": NewBoolean(true),
+			},
 			want: "$a:Boolean$b:Boolean!$c:Boolean!$d:Boolean!$e:Boolean!$f:Boolean",
 		},
 		{
@@ -707,7 +740,12 @@ func TestQueryArguments(t *testing.T) {
 			want: "$a:ID$b:ID!",
 		},
 		{
-			in:   map[string]interface{}{"a": sVal, "b": &sVal, "c": String("foo"), "d": NewString("bar")},
+			in: map[string]interface{}{
+				"a": sVal,
+				"b": &sVal,
+				"c": String("foo"),
+				"d": NewString("bar"),
+			},
 			want: "$a:String!$b:String$c:String!$d:String",
 		},
 		{
@@ -796,7 +834,6 @@ func (cth *customTypeHint) String() string {
 }
 
 func TestDynamicCustomType_GetGraphQLType(t *testing.T) {
-
 	type gqlGetRowsQuery struct {
 		GetRows struct {
 			Data []struct {
@@ -824,7 +861,11 @@ func TestDynamicCustomType_GetGraphQLType(t *testing.T) {
 		t.Errorf("construct custom type hint error:\n %s", err)
 	}
 	if !strings.Contains(constructQuery, hintType) {
-		t.Errorf("custom type hint:\n the constructed query doesn't contain %s\n%s", hintType, constructQuery)
+		t.Errorf(
+			"custom type hint:\n the constructed query doesn't contain %s\n%s",
+			hintType,
+			constructQuery,
+		)
 	}
 }
 

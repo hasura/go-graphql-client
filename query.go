@@ -26,6 +26,7 @@ func (coo constructOptionsOutput) OperationDirectivesString() string {
 	if operationDirectivesStr != "" {
 		return fmt.Sprintf(" %s ", operationDirectivesStr)
 	}
+
 	return ""
 }
 
@@ -44,19 +45,23 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 			if opt.Type() != OptionTypeOperationDirective {
 				return nil, fmt.Errorf("invalid query option type: %s", option.Type())
 			}
+
 			if d, ok := option.(fmt.Stringer); ok {
 				output.operationDirectives = append(output.operationDirectives, d.String())
 			} else {
 				return nil, fmt.Errorf("please implement the fmt.Stringer interface for %s option", OptionTypeOperationDirective)
 			}
-
 		}
 	}
 
 	return output, nil
 }
 
-func constructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, *constructOptionsOutput, error) {
+func constructQuery(
+	v interface{},
+	variables map[string]interface{},
+	options ...Option,
+) (string, *constructOptionsOutput, error) {
 	query, err := query(v)
 	if err != nil {
 		return "", nil, err
@@ -68,18 +73,33 @@ func constructQuery(v interface{}, variables map[string]interface{}, options ...
 	}
 
 	if len(variables) > 0 {
-		return fmt.Sprintf("query %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), optionsOutput, nil
+		return fmt.Sprintf(
+			"query %s(%s)%s%s",
+			optionsOutput.operationName,
+			queryArguments(variables),
+			optionsOutput.OperationDirectivesString(),
+			query,
+		), optionsOutput, nil
 	}
 
 	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
 		return query, optionsOutput, nil
 	}
 
-	return fmt.Sprintf("query %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), optionsOutput, nil
+	return fmt.Sprintf(
+		"query %s%s%s",
+		optionsOutput.operationName,
+		optionsOutput.OperationDirectivesString(),
+		query,
+	), optionsOutput, nil
 }
 
-// ConstructQuery build GraphQL query string from struct and variables
-func ConstructQuery(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+// ConstructQuery build GraphQL query string from struct and variables.
+func ConstructQuery(
+	v interface{},
+	variables map[string]interface{},
+	options ...Option,
+) (string, error) {
 	query, _, err := constructQuery(v, variables, options...)
 	if err != nil {
 		return "", err
@@ -88,7 +108,11 @@ func ConstructQuery(v interface{}, variables map[string]interface{}, options ...
 	return query, err
 }
 
-func constructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, *constructOptionsOutput, error) {
+func constructMutation(
+	v interface{},
+	variables map[string]interface{},
+	options ...Option,
+) (string, *constructOptionsOutput, error) {
 	query, err := query(v)
 	if err != nil {
 		return "", nil, err
@@ -100,18 +124,33 @@ func constructMutation(v interface{}, variables map[string]interface{}, options 
 	}
 
 	if len(variables) > 0 {
-		return fmt.Sprintf("mutation %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), optionsOutput, nil
+		return fmt.Sprintf(
+			"mutation %s(%s)%s%s",
+			optionsOutput.operationName,
+			queryArguments(variables),
+			optionsOutput.OperationDirectivesString(),
+			query,
+		), optionsOutput, nil
 	}
 
 	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
 		return "mutation" + query, optionsOutput, nil
 	}
 
-	return fmt.Sprintf("mutation %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), optionsOutput, nil
+	return fmt.Sprintf(
+		"mutation %s%s%s",
+		optionsOutput.operationName,
+		optionsOutput.OperationDirectivesString(),
+		query,
+	), optionsOutput, nil
 }
 
-// ConstructMutation build GraphQL mutation string from struct and variables
-func ConstructMutation(v interface{}, variables map[string]interface{}, options ...Option) (string, error) {
+// ConstructMutation build GraphQL mutation string from struct and variables.
+func ConstructMutation(
+	v interface{},
+	variables map[string]interface{},
+	options ...Option,
+) (string, error) {
 	query, _, err := constructMutation(v, variables, options...)
 	if err != nil {
 		return "", err
@@ -120,23 +159,42 @@ func ConstructMutation(v interface{}, variables map[string]interface{}, options 
 	return query, err
 }
 
-// ConstructSubscription build GraphQL subscription string from struct and variables
-func ConstructSubscription(v interface{}, variables map[string]interface{}, options ...Option) (string, string, error) {
+// ConstructSubscription build GraphQL subscription string from struct and variables.
+func ConstructSubscription(
+	v interface{},
+	variables map[string]interface{},
+	options ...Option,
+) (string, string, error) {
 	query, err := query(v)
 	if err != nil {
 		return "", "", err
 	}
+
 	optionsOutput, err := constructOptions(options)
 	if err != nil {
 		return "", "", err
 	}
+
 	if len(variables) > 0 {
-		return fmt.Sprintf("subscription %s(%s)%s%s", optionsOutput.operationName, queryArguments(variables), optionsOutput.OperationDirectivesString(), query), optionsOutput.operationName, nil
+		return fmt.Sprintf(
+			"subscription %s(%s)%s%s",
+			optionsOutput.operationName,
+			queryArguments(variables),
+			optionsOutput.OperationDirectivesString(),
+			query,
+		), optionsOutput.operationName, nil
 	}
+
 	if optionsOutput.operationName == "" && len(optionsOutput.operationDirectives) == 0 {
 		return "subscription" + query, optionsOutput.operationName, nil
 	}
-	return fmt.Sprintf("subscription %s%s%s", optionsOutput.operationName, optionsOutput.OperationDirectivesString(), query), optionsOutput.operationName, nil
+
+	return fmt.Sprintf(
+		"subscription %s%s%s",
+		optionsOutput.operationName,
+		optionsOutput.OperationDirectivesString(),
+		query,
+	), optionsOutput.operationName, nil
 }
 
 // queryArguments constructs a minified arguments string for variables.
@@ -149,9 +207,11 @@ func queryArguments(variables map[string]interface{}) string {
 	for k := range variables {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	var buf bytes.Buffer
+
 	for _, k := range keys {
 		_, _ = io.WriteString(&buf, "$")
 		_, _ = io.WriteString(&buf, k)
@@ -161,6 +221,7 @@ func queryArguments(variables map[string]interface{}) string {
 		// Commas in GraphQL are insignificant, and we want minified output.
 		// See https://facebook.github.io/graphql/October2016/#sec-Insignificant-Commas.
 	}
+
 	return buf.String()
 }
 
@@ -168,24 +229,27 @@ func queryArguments(variables map[string]interface{}) string {
 // value indicates whether t is a value (required) type or pointer (optional) type.
 // If value is true, then "!" is written at the end of t.
 func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
-
 	if t.Implements(graphqlTypeInterface) {
 		var graphqlType GraphQLType
 		var ok bool
 		value = t.Kind() != reflect.Ptr
-		if v != nil {
+
+		switch {
+		case v != nil:
 			graphqlType, ok = v.(GraphQLType)
-		} else if t.Kind() == reflect.Ptr {
+		case t.Kind() == reflect.Ptr:
 			graphqlType, ok = reflect.New(t.Elem()).Interface().(GraphQLType)
-		} else {
+		default:
 			graphqlType, ok = reflect.Zero(t).Interface().(GraphQLType)
 		}
+
 		if ok {
 			_, _ = io.WriteString(w, graphqlType.GetGraphQLType())
 			if value {
 				// Value is a required type, so add "!" to the end.
 				_, _ = io.WriteString(w, "!")
 			}
+
 			return
 		}
 	}
@@ -193,6 +257,7 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 	if t.Kind() == reflect.Ptr {
 		// Pointer is an optional type, so no "!" at the end of the pointer's underlying type.
 		writeArgumentType(w, t.Elem(), v, false)
+
 		return
 	}
 
@@ -214,6 +279,7 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 		if n == "string" {
 			n = "String"
 		}
+
 		_, _ = io.WriteString(w, n)
 	}
 
@@ -229,10 +295,12 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 // E.g., struct{Foo Int, BarBaz *bool} -> "{foo,barBaz}".
 func query(v interface{}) (string, error) {
 	var buf bytes.Buffer
+
 	err := writeQuery(&buf, reflect.TypeOf(v), reflect.ValueOf(v), false)
 	if err != nil {
 		return "", fmt.Errorf("failed to write query: %w", err)
 	}
+
 	return buf.String(), nil
 }
 
@@ -250,13 +318,17 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		if reflect.PointerTo(t).Implements(jsonUnmarshaler) {
 			return nil
 		}
+
 		if t.AssignableTo(idType) {
 			return nil
 		}
+
 		if !inline {
 			_, _ = io.WriteString(w, "{")
 		}
+
 		iter := 0
+
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 			value, ok := f.Tag.Lookup("graphql")
@@ -264,9 +336,11 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			if value == "-" {
 				continue
 			}
+
 			if iter != 0 {
 				_, _ = io.WriteString(w, ",")
 			}
+
 			iter++
 
 			inlineField := f.Anonymous && !ok
@@ -281,11 +355,13 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			if isTrue(f.Tag.Get("scalar")) {
 				continue
 			}
+
 			err := writeQuery(w, f.Type, FieldSafe(v, i), inlineField)
 			if err != nil {
 				return fmt.Errorf("failed to write query for struct field `%v`: %w", f.Name, err)
 			}
 		}
+
 		if !inline {
 			_, _ = io.WriteString(w, "}")
 		}
@@ -295,14 +371,17 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 			if err != nil {
 				return fmt.Errorf("failed to write query for slice item `%v`: %w", t, err)
 			}
+
 			return nil
 		}
 		// handle [][2]interface{} like an ordered map
 		if t.Elem().Len() != 2 {
 			return fmt.Errorf("only arrays of len 2 are supported, got %v", t.Elem())
 		}
+
 		sliceOfPairs := v
 		_, _ = io.WriteString(w, "{")
+
 		for i := 0; i < sliceOfPairs.Len(); i++ {
 			pair := sliceOfPairs.Index(i)
 			// it.Value() returns interface{}, so we need to use reflect.ValueOf
@@ -313,16 +392,20 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 				return fmt.Errorf("expected pair (string, %v), got (%v, %v)",
 					val.Type(), key.Type(), val.Type())
 			}
+
 			_, _ = io.WriteString(w, keyString)
 			err := writeQuery(w, val.Type(), val, false)
 			if err != nil {
 				return fmt.Errorf("failed to write query for pair[1] `%v`: %w", val.Type(), err)
 			}
 		}
+
 		_, _ = io.WriteString(w, "}")
 	case reflect.Map:
 		return fmt.Errorf("type %v is not supported, use [][2]interface{} instead", t)
+	default:
 	}
+
 	return nil
 }
 
@@ -330,6 +413,7 @@ func IndexSafe(v reflect.Value, i int) reflect.Value {
 	if v.IsValid() && i < v.Len() {
 		return v.Index(i)
 	}
+
 	return reflect.ValueOf(nil)
 }
 
@@ -337,6 +421,7 @@ func ElemSafe(v reflect.Value) reflect.Value {
 	if v.IsValid() {
 		return v.Elem()
 	}
+
 	return reflect.ValueOf(nil)
 }
 
@@ -344,14 +429,18 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 	if valStruct.IsValid() {
 		return valStruct.Field(i)
 	}
+
 	return reflect.ValueOf(nil)
 }
 
-var jsonUnmarshaler = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-var idType = reflect.TypeOf(ID(""))
-var graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
+var (
+	jsonUnmarshaler      = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+	idType               = reflect.TypeOf(ID(""))
+	graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
+)
 
 func isTrue(s string) bool {
 	b, _ := strconv.ParseBool(s)
+
 	return b
 }

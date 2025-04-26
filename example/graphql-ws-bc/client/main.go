@@ -15,7 +15,11 @@ import (
 
 func main() {
 	protocol := graphql.GraphQLWS
-	protocolArg := flag.String("protocol", "graphql-ws", "The protocol is used for the subscription")
+	protocolArg := flag.String(
+		"protocol",
+		"graphql-ws",
+		"The protocol is used for the subscription",
+	)
 	flag.Parse()
 
 	if protocolArg != nil {
@@ -64,7 +68,6 @@ func startSubscription(protocol graphql.SubscriptionProtocolType) error {
 	}
 
 	_, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
-
 		if err != nil {
 			log.Println(err)
 			return nil
@@ -76,7 +79,6 @@ func startSubscription(protocol graphql.SubscriptionProtocolType) error {
 		log.Printf("hello: %+v", string(data))
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}

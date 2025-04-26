@@ -67,7 +67,7 @@ func waitService(endpoint string, timeoutSecs int) error {
 }
 
 func randomID() string {
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	letter := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 	b := make([]rune, 16)
 	for i := range b {
@@ -124,12 +124,15 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 		}
 
 		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.Users[0].Name,
+				msg,
+			)
 		}
 
 		return errors.New("exit")
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -173,7 +176,6 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 		},
 	}
 	err = client.Mutate(context.Background(), &q, variables, OperationName("InsertUser"))
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -223,12 +225,15 @@ func TestGraphqlWS_SubscriptionRerun(t *testing.T) {
 		}
 
 		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.Users[0].Name,
+				msg,
+			)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -271,7 +276,6 @@ func TestGraphqlWS_SubscriptionRerun(t *testing.T) {
 		},
 	}
 	err = client.Mutate(context.Background(), &q, variables, OperationName("InsertUser"))
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -338,12 +342,15 @@ func TestGraphQLWS_OnError(t *testing.T) {
 		}
 
 		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.Users[0].Name,
+				msg,
+			)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -417,12 +424,15 @@ func TestSubscription_WithRetryStatusCodes(t *testing.T) {
 		}
 
 		if len(sub.Users) > 0 && sub.Users[0].Name != msg {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.Users[0].Name, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.Users[0].Name,
+				msg,
+			)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -497,16 +507,18 @@ func TestSubscription_closeThenRun(t *testing.T) {
 		})
 
 	bulkSubscribe := func() {
-
 		for _, f := range fixtures {
-			id, err := subscriptionClient.Subscribe(f.Query, f.Variables, func(data []byte, e error) error {
-				if e != nil {
-					t.Fatalf("got error: %v, want: nil", e)
+			id, err := subscriptionClient.Subscribe(
+				f.Query,
+				f.Variables,
+				func(data []byte, e error) error {
+					if e != nil {
+						t.Fatalf("got error: %v, want: nil", e)
+						return nil
+					}
 					return nil
-				}
-				return nil
-			})
-
+				},
+			)
 			if err != nil {
 				t.Fatalf("got error: %v, want: nil", err)
 			}
@@ -545,7 +557,11 @@ func TestSubscription_closeThenRun(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	length := len(subscriptionClient.GetSubscriptions())
 	if length != 2 {
-		t.Fatalf("unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v", length, subscriptionClient.currentSession.subscriptions)
+		t.Fatalf(
+			"unexpected subscription client after restart. got: %d, want: 2, subscriptions: %+v",
+			length,
+			subscriptionClient.currentSession.subscriptions,
+		)
 	}
 	if err := subscriptionClient.Close(); err != nil {
 		t.Fatalf("got error: %v, want: nil", err)

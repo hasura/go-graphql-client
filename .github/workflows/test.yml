@@ -10,12 +10,12 @@ jobs:
   test-go:
     name: Run unit and integration tests
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      # Required: allow read access to the content for analysis.
-      contents: read
-      # Optional: Allow write access to checks to allow the action to annotate code in the PR.
-      checks: write
+    # permissions:
+    #   pull-requests: write
+    #   # Required: allow read access to the content for analysis.
+    #   contents: read
+    #   # Optional: Allow write access to checks to allow the action to annotate code in the PR.
+    #   checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4

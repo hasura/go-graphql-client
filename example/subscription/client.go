@@ -15,7 +15,6 @@ func getServerEndpoint() string {
 }
 
 func startSubscription() error {
-
 	client := graphql.NewSubscriptionClient(getServerEndpoint()).
 		WithConnectionParams(map[string]interface{}{
 			"headers": map[string]string{
@@ -46,7 +45,6 @@ func startSubscription() error {
 	}
 
 	subId, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
-
 		if err != nil {
 			log.Println(err)
 			return nil
@@ -58,7 +56,6 @@ func startSubscription() error {
 		log.Println(string(data))
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -74,7 +71,6 @@ func startSubscription() error {
 
 // send hello mutations to the graphql server, so the subscription client can receive messages
 func startSendHello() {
-
 	client := graphql.NewClient(getServerEndpoint(), &http.Client{Transport: http.DefaultTransport})
 	// stop until the subscription client is connected
 	time.Sleep(time.Second)

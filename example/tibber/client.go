@@ -49,7 +49,10 @@ func startSubscription() error {
 				Transport: headerRoundTripper{
 					setHeaders: func(req *http.Request) {
 						// Replace MyHomeAutomationPlatformReplaceMe/1.3.4 with a name that describes where you are running this client on
-						req.Header.Set("User-Agent", "MyHomeAutomationPlatformReplaceMe/1.2.3 hasura/go-graphql-client/0.13.1")
+						req.Header.Set(
+							"User-Agent",
+							"MyHomeAutomationPlatformReplaceMe/1.2.3 hasura/go-graphql-client/0.13.1",
+						)
 					},
 					rt: http.DefaultTransport,
 				},
@@ -81,7 +84,6 @@ func startSubscription() error {
 		"homeId": graphql.ID("96a14971-525a-4420-aae9-e5aedaa129ff"),
 	}
 	_, err := client.Subscribe(sub, variables, func(data []byte, err error) error {
-
 		if err != nil {
 			log.Println("ERROR: ", err)
 			return nil
@@ -93,7 +95,6 @@ func startSubscription() error {
 		log.Println(string(data))
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}

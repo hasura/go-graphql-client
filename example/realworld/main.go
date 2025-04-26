@@ -20,7 +20,6 @@ func main() {
 }
 
 func run() error {
-
 	url := "https://rickandmortyapi.com/graphql"
 
 	client := graphql.NewClient(url, nil)

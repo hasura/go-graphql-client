@@ -21,12 +21,14 @@ func ParseMixedCaps(name string) Name {
 	w, i := 0, 0 // Index of start of word, scan.
 	for i+1 <= len(runes) {
 		eow := false // Whether we hit the end of a word.
-		if i+1 == len(runes) {
+
+		switch {
+		case i+1 == len(runes):
 			eow = true
-		} else if unicode.IsLower(runes[i]) && unicode.IsUpper(runes[i+1]) {
+		case unicode.IsLower(runes[i]) && unicode.IsUpper(runes[i+1]):
 			// lower -> Upper.
 			eow = true
-		} else if i+2 < len(runes) && unicode.IsUpper(runes[i]) && unicode.IsUpper(runes[i+1]) && unicode.IsLower(runes[i+2]) {
+		case i+2 < len(runes) && unicode.IsUpper(runes[i]) && unicode.IsUpper(runes[i+1]) && unicode.IsLower(runes[i+2]):
 			// Upper -> Upper,lower. End of acronym, followed by a word.
 			eow = true
 
@@ -34,7 +36,9 @@ func ParseMixedCaps(name string) Name {
 				eow = false
 			}
 		}
+
 		i++
+
 		if !eow {
 			continue
 		}
@@ -48,8 +52,10 @@ func ParseMixedCaps(name string) Name {
 		} else {
 			words = append(words, word)
 		}
+
 		w = i
 	}
+
 	return words
 }
 
@@ -70,7 +76,9 @@ func ParseLowerCamelCase(name string) Name {
 			// Upper letter.
 			eow = true
 		}
+
 		i++
+
 		if !eow {
 			continue
 		}
@@ -79,6 +87,7 @@ func ParseLowerCamelCase(name string) Name {
 		words = append(words, string(runes[w:i]))
 		w = i
 	}
+
 	return words
 }
 
@@ -91,27 +100,34 @@ func ParseScreamingSnakeCase(name string) Name {
 	// Split name at '_' characters.
 	runes := []rune(name)
 	w, i := 0, 0 // Index of start of word, scan.
+
 	for i+1 <= len(runes) {
 		eow := false // Whether we hit the end of a word.
+
 		if i+1 == len(runes) {
 			eow = true
 		} else if runes[i+1] == '_' {
 			// Underscore.
 			eow = true
 		}
+
 		i++
+
 		if !eow {
 			continue
 		}
 
 		// [w, i) is a word.
 		words = append(words, string(runes[w:i]))
+
 		if i < len(runes) && runes[i] == '_' {
 			// Skip underscore.
 			i++
 		}
+
 		w = i
 	}
+
 	return words
 }
 
@@ -125,19 +141,26 @@ func (n Name) ToMixedCaps() string {
 	for i, word := range n {
 		if strings.EqualFold(word, "IDs") { // Special case, plural form of ID initialism.
 			n[i] = "IDs"
+
 			continue
 		}
+
 		if initialism, ok := isInitialism(word); ok {
 			n[i] = initialism
+
 			continue
 		}
+
 		if brand, ok := isBrand(word); ok {
 			n[i] = brand
+
 			continue
 		}
+
 		r, size := utf8.DecodeRuneInString(word)
 		n[i] = string(unicode.ToUpper(r)) + strings.ToLower(word[size:])
 	}
+
 	return strings.Join(n, "")
 }
 
@@ -148,11 +171,14 @@ func (n Name) ToLowerCamelCase() string {
 	for i, word := range n {
 		if i == 0 {
 			n[i] = strings.ToLower(word)
+
 			continue
 		}
+
 		r, size := utf8.DecodeRuneInString(word)
 		n[i] = string(unicode.ToUpper(r)) + strings.ToLower(word[size:])
 	}
+
 	return strings.Join(n, "")
 }
 
@@ -160,12 +186,14 @@ func (n Name) ToLowerCamelCase() string {
 func isInitialism(word string) (string, bool) {
 	initialism := strings.ToUpper(word)
 	_, ok := initialisms[initialism]
+
 	return initialism, ok
 }
 
 // isTwoInitialisms reports whether word is two initialisms.
 func isTwoInitialisms(word string) (string, string, bool) {
 	word = strings.ToUpper(word)
+
 	for i := 2; i <= len(word)-2; i++ { // Shortest initialism is 2 characters long.
 		_, ok1 := initialisms[word[:i]]
 		_, ok2 := initialisms[word[i:]]
@@ -173,6 +201,7 @@ func isTwoInitialisms(word string) (string, string, bool) {
 			return word[:i], word[i:], true
 		}
 	}
+
 	return "", "", false
 }
 
@@ -224,6 +253,7 @@ var initialisms = map[string]struct{}{
 // isBrand reports whether word is a brand.
 func isBrand(word string) (string, bool) {
 	brand, ok := brands[strings.ToLower(word)]
+
 	return brand, ok
 }
 

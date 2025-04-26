@@ -34,7 +34,6 @@ func subscription_setupClients(port int) (*gql.Client, *gql.SubscriptionClient) 
 }
 
 func subscription_setupServer(port int) *http.Server {
-
 	// init graphQL schema
 	s, err := graphql.ParseSchema(schema, newResolver())
 	if err != nil {
@@ -101,12 +100,15 @@ func TestTransportWS_basicTest(t *testing.T) {
 		}
 
 		if sub.HelloSaid.Message != gql.String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.HelloSaid.Message,
+				msg,
+			)
 		}
 
 		return errors.New("exit")
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -203,12 +205,15 @@ func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
 		}
 
 		if sub.HelloSaid.Message != gql.String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.HelloSaid.Message,
+				msg,
+			)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -241,12 +246,15 @@ func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
 		}
 
 		if sub2.HelloSaid.Message != gql.String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub2.HelloSaid.Message, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub2.HelloSaid.Message,
+				msg,
+			)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -339,7 +347,6 @@ func TestTransportWS_onDisconnected(t *testing.T) {
 		}
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
@@ -364,7 +371,6 @@ func TestTransportWS_onDisconnected(t *testing.T) {
 }
 
 func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
-
 	server := subscription_setupServer(8082)
 	client, subscriptionClient := subscription_setupClients(8082)
 	msg := randomID()
@@ -457,24 +463,27 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		})
 
 	for i, f := range fixtures {
-		id, err := subscriptionClient.Subscribe(f.Query, f.Variables, func(data []byte, e error) error {
-			lock.Lock()
-			defer lock.Unlock()
-			if e != nil {
-				t.Fatalf("got error: %v, want: nil", e)
+		id, err := subscriptionClient.Subscribe(
+			f.Query,
+			f.Variables,
+			func(data []byte, e error) error {
+				lock.Lock()
+				defer lock.Unlock()
+				if e != nil {
+					t.Fatalf("got error: %v, want: nil", e)
+					return nil
+				}
+
+				log.Println("result", string(data))
+				e = json.Unmarshal(data, &f.Query)
+				if e != nil {
+					t.Fatalf("got error: %v, want: nil", e)
+					return nil
+				}
+
 				return nil
-			}
-
-			log.Println("result", string(data))
-			e = json.Unmarshal(data, &f.Query)
-			if e != nil {
-				t.Fatalf("got error: %v, want: nil", e)
-				return nil
-			}
-
-			return nil
-		})
-
+			},
+		)
 		if err != nil {
 			t.Fatalf("got error: %v, want: nil", err)
 		}
@@ -514,7 +523,6 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 		for _, f := range fixtures {
 			if err := subscriptionClient.Unsubscribe(f.ExpectedID); err != nil {
 				panic(err)
-
 			}
 			time.Sleep(time.Second)
 		}
@@ -527,14 +535,28 @@ func testSubscription_LifeCycleEvents(t *testing.T, syncMode bool) {
 	}
 
 	if len(subscriptionResults) != len(fixtures) {
-		t.Fatalf("failed to listen OnSubscriptionComplete event. got %+v, want: %+v", len(subscriptionResults), len(fixtures))
+		t.Fatalf(
+			"failed to listen OnSubscriptionComplete event. got %+v, want: %+v",
+			len(subscriptionResults),
+			len(fixtures),
+		)
 	}
 	for i, s := range subscriptionResults {
 		if s.GetKey() != fixtures[i].ExpectedID {
-			t.Fatalf("%d: subscription id not matched, got: %s, want: %s", i, s.GetKey(), fixtures[i].ExpectedID)
+			t.Fatalf(
+				"%d: subscription id not matched, got: %s, want: %s",
+				i,
+				s.GetKey(),
+				fixtures[i].ExpectedID,
+			)
 		}
 		if s.GetPayload().Query != fixtures[i].ExpectedPayload.Query {
-			t.Fatalf("%d: query output not matched, got: %s, want: %s", i, s.GetPayload().Query, fixtures[i].ExpectedPayload.Query)
+			t.Fatalf(
+				"%d: query output not matched, got: %s, want: %s",
+				i,
+				s.GetPayload().Query,
+				fixtures[i].ExpectedPayload.Query,
+			)
 		}
 	}
 
@@ -608,17 +630,21 @@ func TestTransportWS_ConnectionIdleTimeout(t *testing.T) {
 		}
 
 		if sub.HelloSaid.Message != gql.String(msg) {
-			t.Fatalf("subscription message does not match. got: %s, want: %s", sub.HelloSaid.Message, msg)
+			t.Fatalf(
+				"subscription message does not match. got: %s, want: %s",
+				sub.HelloSaid.Message,
+				msg,
+			)
 		}
 
 		return errors.New("exit")
 	})
-
 	if err != nil {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 
-	if err := subscriptionClient.Run(); err == nil || !errors.Is(err, gql.ErrWebsocketConnectionIdleTimeout) {
+	if err := subscriptionClient.Run(); err == nil ||
+		!errors.Is(err, gql.ErrWebsocketConnectionIdleTimeout) {
 		t.Errorf("got error: %v, want: %s", err, gql.ErrWebsocketConnectionIdleTimeout)
 	}
 }

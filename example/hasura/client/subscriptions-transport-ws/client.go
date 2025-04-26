@@ -25,7 +25,6 @@ func main() {
 }
 
 func startSubscription() error {
-
 	client := graphql.NewSubscriptionClient(serverEndpoint).
 		WithConnectionParams(map[string]interface{}{
 			"headers": map[string]string{
@@ -55,7 +54,6 @@ func startSubscription() error {
 	}
 
 	subId, err := client.Subscribe(sub, nil, func(data []byte, err error) error {
-
 		if err != nil {
 			log.Println(err)
 			return nil
@@ -67,7 +65,6 @@ func startSubscription() error {
 		log.Println(string(data))
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +82,6 @@ type user_insert_input map[string]interface{}
 
 // insertUsers insert users to the graphql server, so the subscription client can receive messages
 func insertUsers() {
-
 	client := graphql.NewClient(serverEndpoint, &http.Client{
 		Transport: headerRoundTripper{
 			setHeaders: func(req *http.Request) {
@@ -120,7 +116,12 @@ func insertUsers() {
 				},
 			},
 		}
-		err := client.Mutate(context.Background(), &q, variables, graphql.OperationName("InsertUser"))
+		err := client.Mutate(
+			context.Background(),
+			&q,
+			variables,
+			graphql.OperationName("InsertUser"),
+		)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -129,7 +130,7 @@ func insertUsers() {
 }
 
 func randomString() string {
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	letter := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 	b := make([]rune, 16)
 	for i := range b {
