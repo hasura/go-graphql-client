@@ -177,6 +177,7 @@ func (d *decoder) decode() error {
 				var f reflect.Value
 
 				if v.Kind() == reflect.Slice {
+					someSliceExist = true
 					// we want to append the template item copy
 					// so that all the inner structure gets preserved
 					if v.Len() != 0 {
@@ -187,7 +188,6 @@ func (d *decoder) decode() error {
 
 						v.Set(reflect.Append(v, copied)) // v = append(v, T).
 						f = v.Index(v.Len() - 1)
-						someSliceExist = true
 					}
 				}
 
