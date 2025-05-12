@@ -567,3 +567,56 @@ func TestSubscription_closeThenRun(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 }
+
+func TestRunWithContext_GracefulShutdown(t *testing.T) {
+	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
+		WithConnectionParams(map[string]interface{}{
+			"headers": map[string]string{
+				"x-hasura-admin-secret": hasuraTestAdminSecret,
+			},
+		}).
+		WithProtocol(GraphQLWS).
+		WithLog(log.Println)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Simulate a subscription
+	var sub struct {
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	// Run the subscription client in a separate goroutine
+	go func() {
+		if err := subscriptionClient.RunWithContext(ctx); err != nil {
+			t.Errorf("got error: %v, want: nil", err)
+		}
+	}()
+
+	// Allow some time for the client to start
+	time.Sleep(2 * time.Second)
+
+	// Cancel the parent context to trigger graceful shutdown
+	cancel()
+
+	// Allow some time for the shutdown to complete
+	time.Sleep(2 * time.Second)
+
+	// Verify that the client has shut down
+	if subscriptionClient.getCurrentSession() != nil {
+		t.Error("expected session to be nil after shutdown, but it was not")
+	}
+}

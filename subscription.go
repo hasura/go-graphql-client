@@ -1165,6 +1165,13 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			// Check if the cancellation came from the parent context
+			if errors.Is(ctx.Err(), context.Canceled) {
+				// Parent context was canceled, close gracefully without error
+				_ = sc.close(subContext)
+				return nil
+			}
+			// Internal cancellation, return error
 			return sc.close(subContext)
 		case e := <-sc.errorChan:
 			if sc.getClientStatus() == scStatusClosing {
