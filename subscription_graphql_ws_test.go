@@ -567,3 +567,91 @@ func TestSubscription_closeThenRun(t *testing.T) {
 		t.Fatalf("got error: %v, want: nil", err)
 	}
 }
+
+// waitForConnectionState waits for the subscription client to reach a specific connection state
+func waitForConnectionState(t *testing.T, sc *SubscriptionClient, tickerDuration time.Duration, timeout time.Duration, checkFn func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(tickerDuration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if checkFn() {
+				return true
+			}
+			if time.Now().After(deadline) {
+				return false
+			}
+		}
+	}
+}
+
+func TestRunWithContext_GracefulShutdown(t *testing.T) {
+	subscriptionClient := NewSubscriptionClient(fmt.Sprintf("%s/v1/graphql", hasuraTestHost)).
+		WithConnectionParams(map[string]interface{}{
+			"headers": map[string]string{
+				"x-hasura-admin-secret": hasuraTestAdminSecret,
+			},
+		}).
+		WithProtocol(GraphQLWS).
+		WithLog(log.Println)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Simulate a subscription
+	var sub struct {
+		Users []struct {
+			ID   int    `graphql:"id"`
+			Name string `graphql:"name"`
+		} `graphql:"user(order_by: { id: desc }, limit: 5)"`
+	}
+
+	_, err := subscriptionClient.Subscribe(sub, nil, func(data []byte, e error) error {
+		if e != nil {
+			t.Fatalf("got error: %v, want: nil", e)
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("got error: %v, want: nil", err)
+	}
+
+	// Run the subscription client in a separate goroutine and collect error
+	done := make(chan struct{})
+	var runErr error
+	go func() {
+		runErr = subscriptionClient.RunWithContext(ctx)
+		close(done)
+	}()
+
+	// Wait for the client to establish connection
+	if !waitForConnectionState(t, subscriptionClient, 100*time.Millisecond, 5*time.Second, func() bool {
+		session := subscriptionClient.getCurrentSession()
+		return session != nil && session.GetAcknowledge()
+	}) {
+		t.Fatal("timeout waiting for connection to be established")
+	}
+
+	// Cancel the parent context to trigger graceful shutdown
+	cancel()
+
+	// Wait for the client to shut down
+	if !waitForConnectionState(t, subscriptionClient, 100*time.Millisecond, 5*time.Second, func() bool {
+		return subscriptionClient.getCurrentSession() == nil
+	}) {
+		t.Fatal("timeout waiting for connection to be closed")
+	}
+
+	// Wait for the Run goroutine to finish
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for Run goroutine to finish")
+	}
+	if runErr != nil {
+		t.Errorf("got error: %v, want: nil", err)
+	}
+}
