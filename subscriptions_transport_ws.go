@@ -108,7 +108,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 ) error {
 	switch message.Type {
 	case GQLError:
-		ctx.Log(message, "server", GQLError)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLError)
 		var errs Errors
 
 		jsonErr := json.Unmarshal(message.Payload, &errs)
@@ -124,7 +126,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 			return nil
 		}
 	case GQLData:
-		ctx.Log(message, "server", GQLData)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLData)
 		var out struct {
 			Data   *json.RawMessage `json:"data"`
 			Errors Errors           `json:"errors"`
@@ -154,7 +158,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 
 		subscription.handler(outData, nil)
 	case GQLConnectionError, "conn_err":
-		ctx.Log(message, "server", GQLConnectionError)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLConnectionError)
 
 		// try to parse the error object
 		var payload any
@@ -186,7 +192,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 
 		return err
 	case GQLComplete:
-		ctx.Log(message, "server", GQLComplete)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLComplete)
 		sub := ctx.GetSubscription(message.ID)
 
 		if sub == nil {
@@ -198,12 +206,16 @@ func (stw *subscriptionsTransportWS) OnMessage(
 			ctx.SetSubscription(sub.GetKey(), nil)
 		}
 	case GQLConnectionKeepAlive:
-		ctx.Log(message, "server", GQLConnectionKeepAlive)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLConnectionKeepAlive)
 		ctx.OnConnectionAlive()
 	case GQLConnectionAck:
 		// Expected response to the ConnectionInit message from the client acknowledging a successful connection with the server.
 		// The client is now ready to request subscription operations.
-		ctx.Log(message, "server", GQLConnectionAck)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLConnectionAck)
 		ctx.SetAcknowledge(true)
 		subscriptions := ctx.GetSubscriptions()
 
@@ -216,7 +228,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 						id,
 						sub.payload.Query,
 					),
-					"client",
+					map[string]any{
+						"source": "client",
+					},
 					GQLInternal,
 				)
 
@@ -226,7 +240,9 @@ func (stw *subscriptionsTransportWS) OnMessage(
 
 		ctx.OnConnected()
 	default:
-		ctx.Log(message, "server", GQLUnknown)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLUnknown)
 	}
 
 	return nil

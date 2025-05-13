@@ -91,7 +91,9 @@ func (gws *graphqlWS) OnMessage(
 ) error {
 	switch message.Type {
 	case GQLError:
-		ctx.Log(message, "server", message.Type)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, message.Type)
 		var errs Errors
 
 		jsonErr := json.Unmarshal(message.Payload, &errs)
@@ -107,7 +109,9 @@ func (gws *graphqlWS) OnMessage(
 			return nil
 		}
 	case GQLNext:
-		ctx.Log(message, "server", message.Type)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, message.Type)
 		var out struct {
 			Data   *json.RawMessage `json:"data"`
 			Errors Errors           `json:"errors"`
@@ -137,7 +141,9 @@ func (gws *graphqlWS) OnMessage(
 
 		subscription.handler(outData, nil)
 	case GQLComplete:
-		ctx.Log(message, "server", message.Type)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, message.Type)
 		sub := ctx.GetSubscription(message.ID)
 		if sub == nil {
 			ctx.OnSubscriptionComplete(Subscription{
@@ -148,7 +154,9 @@ func (gws *graphqlWS) OnMessage(
 			ctx.SetSubscription(sub.GetKey(), nil)
 		}
 	case GQLPing:
-		ctx.Log(message, "server", GQLPing)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLPing)
 		ctx.OnConnectionAlive()
 
 		// send pong response message back to the server
@@ -158,12 +166,16 @@ func (gws *graphqlWS) OnMessage(
 		}
 
 		if err := ctx.Send(msg, GQLPong); err != nil {
-			ctx.Log(err, "client", GQLInternal)
+			ctx.Log(err, map[string]any{
+				"source": "client",
+			}, GQLInternal)
 		}
 	case GQLConnectionAck:
 		// Expected response to the ConnectionInit message from the client acknowledging a successful connection with the server.
 		// The client is now ready to request subscription operations.
-		ctx.Log(message, "server", GQLConnectionAck)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLConnectionAck)
 		ctx.SetAcknowledge(true)
 
 		for id, sub := range ctx.GetSubscriptions() {
@@ -175,7 +187,9 @@ func (gws *graphqlWS) OnMessage(
 						id,
 						sub.payload.Query,
 					),
-					"client",
+					map[string]any{
+						"source": "client",
+					},
 					GQLInternal,
 				)
 
@@ -185,7 +199,9 @@ func (gws *graphqlWS) OnMessage(
 
 		ctx.OnConnected()
 	default:
-		ctx.Log(message, "server", GQLUnknown)
+		ctx.Log(message, map[string]any{
+			"source": "server",
+		}, GQLUnknown)
 	}
 
 	return nil
