@@ -125,6 +125,15 @@ func TestTransportWS_basicTest(t *testing.T) {
 	// wait until the subscription client connects to the server
 	time.Sleep(2 * time.Second)
 
+	stats := gql.GetWebSocketStats()
+	if stats.TotalActiveConnections != 1 {
+		t.Fatalf("got total active websocket connections: %v, want: 1", stats.TotalActiveConnections)
+	}
+
+	if stats.TotalClosedConnections != 0 {
+		t.Fatalf("got total closed websocket connections: %v, want: 0", stats.TotalClosedConnections)
+	}
+
 	// call a mutation request to send message to the subscription
 	/*
 		mutation ($msg: String!) {
@@ -149,6 +158,15 @@ func TestTransportWS_basicTest(t *testing.T) {
 	}
 
 	<-stop
+
+	stats = gql.GetWebSocketStats()
+	if stats.TotalActiveConnections != 0 {
+		t.Fatalf("got total active websocket connections: %v, want: 0", stats.TotalActiveConnections)
+	}
+
+	if stats.TotalClosedConnections != 1 {
+		t.Fatalf("got total closed websocket connections: %v, want: 1", stats.TotalClosedConnections)
+	}
 }
 
 func TestTransportWS_exitWhenNoSubscription(t *testing.T) {
