@@ -1655,9 +1655,7 @@ func (ws *websocketStats) AddActiveConnection(id uuid.UUID) {
 func (ws *websocketStats) AddDeadConnection(id uuid.UUID) {
 	ws.sync.Lock()
 	defer ws.sync.Unlock()
-	if _, ok := ws.activeConnectionIDs[id]; ok {
-		delete(ws.activeConnectionIDs, id)
-	}
+	delete(ws.activeConnectionIDs, id)
 
 	ws.closedConnectionIDs[id] = true
 }
