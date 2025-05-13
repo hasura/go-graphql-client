@@ -1625,6 +1625,13 @@ type WebsocketOptions struct {
 	Subprotocols []string
 }
 
+// WebSocketStats hold statistic data of WebSocket connections for subscription.
+type WebSocketStats struct {
+	TotalActiveConnections int
+	TotalClosedConnections int
+	ActiveConnectionIDs    []uuid.UUID
+}
+
 type websocketStats struct {
 	sync                sync.Mutex
 	activeConnectionIDs map[uuid.UUID]bool
@@ -1655,18 +1662,24 @@ func (ws *websocketStats) AddDeadConnection(id uuid.UUID) {
 	ws.closedConnectionIDs[id] = true
 }
 
-// GetTotalActiveWebSocketConnections gets the total number of active websockets.
-func GetTotalActiveWebSocketConnections() int {
-	globalWebSocketStats.sync.Lock()
-	defer globalWebSocketStats.sync.Unlock()
+// GetStats gets the websocket stats.
+func (ws *websocketStats) GetStats() WebSocketStats {
+	ws.sync.Lock()
+	defer ws.sync.Unlock()
 
-	return len(globalWebSocketStats.activeConnectionIDs)
+	activeIDs := make([]uuid.UUID, 0, len(ws.activeConnectionIDs))
+	for id := range ws.activeConnectionIDs {
+		activeIDs = append(activeIDs, id)
+	}
+
+	return WebSocketStats{
+		ActiveConnectionIDs:    activeIDs,
+		TotalActiveConnections: len(globalWebSocketStats.activeConnectionIDs),
+		TotalClosedConnections: len(globalWebSocketStats.closedConnectionIDs),
+	}
 }
 
-// GetTotalClosedWebSocketConnections gets the total number of active websockets.
-func GetTotalClosedWebSocketConnections() int {
-	globalWebSocketStats.sync.Lock()
-	defer globalWebSocketStats.sync.Unlock()
-
-	return len(globalWebSocketStats.closedConnectionIDs)
+// GetWebSocketStats gets the websocket stats.
+func GetWebSocketStats() WebSocketStats {
+	return globalWebSocketStats.GetStats()
 }
