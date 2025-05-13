@@ -490,7 +490,7 @@ func (sc *SubscriptionContext) run() {
 
 				if closeStatus < 0 {
 					sc.Log(err, map[string]any{
-						"source": "client",
+						"source": "server",
 					}, GQL_CONNECTION_ERROR)
 
 					continue
@@ -1530,7 +1530,7 @@ func (wh *WebsocketHandler) Ping() error {
 
 // Close implements the function to close the websocket connection.
 func (wh *WebsocketHandler) Close() error {
-	globalWebSocketStats.AddDeadConnection(wh.id)
+	globalWebSocketStats.AddClosedConnection(wh.id)
 
 	return wh.Conn.Close(websocket.StatusNormalClosure, "close websocket")
 }
@@ -1651,8 +1651,8 @@ func (ws *websocketStats) AddActiveConnection(id uuid.UUID) {
 	ws.activeConnectionIDs[id] = true
 }
 
-// AddDeadConnection adds an dead connection id to the list.
-func (ws *websocketStats) AddDeadConnection(id uuid.UUID) {
+// AddClosedConnection adds an dead connection id to the list.
+func (ws *websocketStats) AddClosedConnection(id uuid.UUID) {
 	ws.sync.Lock()
 	defer ws.sync.Unlock()
 	delete(ws.activeConnectionIDs, id)
