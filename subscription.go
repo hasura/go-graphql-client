@@ -139,7 +139,10 @@ type SubscriptionProtocol interface {
 // SubscriptionContext represents a shared context for protocol implementations with the websocket connection inside.
 type SubscriptionContext struct {
 	context.Context
-	client        *SubscriptionClient
+
+	client *SubscriptionClient
+	// The unique id across the session life-cycle.
+	sessionID     uuid.UUID
 	websocketConn WebsocketConn
 
 	connectionInitAt      time.Time
@@ -154,10 +157,15 @@ type SubscriptionContext struct {
 // Log prints condition logging with message type filters.
 func (sc *SubscriptionContext) Log(
 	message interface{},
-	source string,
+	metadata map[string]any,
 	opType OperationMessageType,
 ) {
-	sc.client.printLog(message, source, opType)
+	metadata["session_id"] = sc.sessionID
+	if conn, ok := sc.websocketConn.(*WebsocketHandler); ok {
+		metadata["connection_id"] = conn.GetID()
+	}
+
+	sc.client.printLog(message, metadata, opType)
 }
 
 // OnConnectionAlive executes the OnConnectionAlive callback if exists.
@@ -348,8 +356,12 @@ func (sc *SubscriptionContext) Close() error {
 
 	var err error
 	sc.SetClosed(true)
+	conn := sc.GetWebsocketConn()
+	sc.Log("closing the current session", map[string]any{
+		"connection_active": conn != nil,
+	}, GQLInternal)
 
-	if conn := sc.GetWebsocketConn(); conn != nil {
+	if conn != nil {
 		if sc.client.onDisconnected != nil {
 			sc.client.onDisconnected()
 		}
@@ -369,7 +381,9 @@ func (sc *SubscriptionContext) Close() error {
 // Send emits a message to the graphql server.
 func (sc *SubscriptionContext) Send(message interface{}, opType OperationMessageType) error {
 	if conn := sc.GetWebsocketConn(); conn != nil {
-		sc.Log(message, "client", opType)
+		sc.Log(message, map[string]any{
+			"source": "client",
+		}, opType)
 
 		return conn.WriteJSON(message)
 	}
@@ -379,6 +393,7 @@ func (sc *SubscriptionContext) Send(message interface{}, opType OperationMessage
 
 // initializes the websocket connection.
 func (sc *SubscriptionContext) init(parentContext context.Context) error {
+	sc.Log("initialize new session", map[string]any{}, GQLInternal)
 	now := time.Now()
 
 	for {
@@ -423,7 +438,9 @@ func (sc *SubscriptionContext) init(parentContext context.Context) error {
 
 		sc.Log(
 			fmt.Sprintf("%s. retry in %d second...", err.Error(), sc.client.retryDelay/time.Second),
-			"client",
+			map[string]any{
+				"source": "client",
+			},
 			GQLInternal,
 		)
 		time.Sleep(sc.client.retryDelay)
@@ -448,7 +465,9 @@ func (sc *SubscriptionContext) run() {
 				if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "EOF") ||
 					errors.Is(err, net.ErrClosed) ||
 					strings.Contains(err.Error(), "connection reset by peer") {
-					sc.Log(err.Error(), "client", GQLConnectionError)
+					sc.Log(err.Error(), map[string]any{
+						"source": "client",
+					}, GQLConnectionError)
 					sc.client.errorChan <- errRestartSubscriptionClient
 
 					return
@@ -470,7 +489,9 @@ func (sc *SubscriptionContext) run() {
 				}
 
 				if closeStatus < 0 {
-					sc.Log(err, "server", GQL_CONNECTION_ERROR)
+					sc.Log(err, map[string]any{
+						"source": "client",
+					}, GQL_CONNECTION_ERROR)
 
 					continue
 				}
@@ -482,14 +503,18 @@ func (sc *SubscriptionContext) run() {
 					websocket.StatusTryAgainLater,
 					websocket.StatusMessageTooBig,
 					websocket.StatusInvalidFramePayloadData:
-					sc.Log(err, "server", GQL_CONNECTION_ERROR)
+					sc.Log(err, map[string]any{
+						"source": "server",
+					}, GQL_CONNECTION_ERROR)
 					sc.client.errorChan <- errRestartSubscriptionClient
 				case websocket.StatusNormalClosure, websocket.StatusAbnormalClosure:
 					// close event from websocket client, exiting...
 					_ = sc.client.close(sc)
 				default:
 					// let the user to handle unknown errors manually.
-					sc.Log(err, "server", GQL_CONNECTION_ERROR)
+					sc.Log(err, map[string]any{
+						"source": "server",
+					}, GQL_CONNECTION_ERROR)
 					sc.client.errorChan <- err
 				}
 
@@ -531,7 +556,9 @@ func (sc *SubscriptionContext) startWebsocketKeepAlive(c WebsocketConn, interval
 			// Ping the websocket. You might want to handle any potential errors.
 			err := c.Ping()
 			if err != nil {
-				sc.Log("Failed to ping server", "client", GQLInternal)
+				sc.Log("Failed to ping server", map[string]any{
+					"source": "client",
+				}, GQLInternal)
 				sc.client.errorChan <- errRestartSubscriptionClient
 
 				return
@@ -1137,7 +1164,9 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 						time.Since(
 							session.getConnectionInitAt(),
 						) > sc.connectionInitialisationTimeout {
-						sc.printLog("Connection initialisation timeout", "client", GQLInternal)
+						sc.printLog("Connection initialisation timeout", map[string]any{
+							"source": "client",
+						}, GQLInternal)
 						sc.errorChan <- &websocket.CloseError{
 							Code:   StatusConnectionInitialisationTimeout,
 							Reason: "Connection initialisation timeout",
@@ -1152,7 +1181,9 @@ func (sc *SubscriptionClient) RunWithContext(ctx context.Context) error {
 						) > sc.websocketConnectionIdleTimeout {
 						sc.printLog(
 							ErrWebsocketConnectionIdleTimeout.Error(),
-							"client",
+							map[string]any{
+								"source": "client",
+							},
 							GQLInternal,
 						)
 						sc.errorChan <- ErrWebsocketConnectionIdleTimeout
@@ -1269,6 +1300,8 @@ func (sc *SubscriptionClient) close(session *SubscriptionContext) error {
 		return nil
 	}
 
+	sc.printLog("close the subscription client", map[string]any{}, GQLInternal)
+
 	sc.setClientStatus(scStatusClosing)
 	if sc.cancel != nil {
 		sc.cancel()
@@ -1323,6 +1356,7 @@ func (sc *SubscriptionClient) initNewSession(ctx context.Context) (*Subscription
 
 	subContext := &SubscriptionContext{
 		client:        sc,
+		sessionID:     uuid.New(),
 		subscriptions: make(map[string]Subscription),
 	}
 
@@ -1380,7 +1414,9 @@ func (sc *SubscriptionClient) checkSubscriptionStatuses(session *SubscriptionCon
 		SubscriptionRunning,
 		SubscriptionWaiting,
 	}) == 0 {
-		session.Log("no running subscription. exiting...", "client", GQLInternal)
+		session.Log("no running subscription. exiting...", map[string]any{
+			"source": "client",
+		}, GQLInternal)
 		_ = sc.close(session)
 	}
 }
@@ -1388,7 +1424,7 @@ func (sc *SubscriptionClient) checkSubscriptionStatuses(session *SubscriptionCon
 // prints condition logging with message type filters.
 func (sc *SubscriptionClient) printLog(
 	message interface{},
-	source string,
+	metadata map[string]any,
 	opType OperationMessageType,
 ) {
 	if sc.log == nil {
@@ -1401,7 +1437,8 @@ func (sc *SubscriptionClient) printLog(
 		}
 	}
 
-	sc.log(message, source)
+	metadata["type"] = opType
+	sc.log(message, metadata)
 }
 
 // The payload format of both subscriptions-transport-ws and graphql-ws are the same.
@@ -1453,9 +1490,18 @@ func parseInt32Ranges(codes []string) ([][]int32, error) {
 type WebsocketHandler struct {
 	*websocket.Conn
 
+	// The unique id of the current websocket connections.
+	// The ID will be generated whenever initializing a new Websocket connection.
+	id uuid.UUID
+
 	ctx          context.Context
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+}
+
+// GetID gets the identity of the Websocket connection.
+func (wh WebsocketHandler) GetID() uuid.UUID {
+	return wh.id
 }
 
 // WriteJSON implements the function to encode and send message in json format to the server.
@@ -1484,6 +1530,8 @@ func (wh *WebsocketHandler) Ping() error {
 
 // Close implements the function to close the websocket connection.
 func (wh *WebsocketHandler) Close() error {
+	globalWebSocketStats.AddDeadConnection(wh.id)
+
 	return wh.Conn.Close(websocket.StatusNormalClosure, "close websocket")
 }
 
@@ -1528,8 +1576,12 @@ func newWebsocketConn(
 		return nil, err
 	}
 
+	id := uuid.New()
+	globalWebSocketStats.AddActiveConnection(id)
+
 	return &WebsocketHandler{
 		Conn:         c,
+		id:           id,
 		ctx:          ctx,
 		readTimeout:  options.ReadTimeout,
 		writeTimeout: options.WriteTimeout,
@@ -1571,4 +1623,61 @@ type WebsocketOptions struct {
 	// Subprotocols hold subprotocol names of the subscription transport
 	// The graphql server depends on the Sec-WebSocket-Protocol header to return the correct message specification
 	Subprotocols []string
+}
+
+// WebSocketStats hold statistic data of WebSocket connections for subscription.
+type WebSocketStats struct {
+	TotalActiveConnections int
+	TotalClosedConnections int
+	ActiveConnectionIDs    []uuid.UUID
+}
+
+type websocketStats struct {
+	sync                sync.Mutex
+	activeConnectionIDs map[uuid.UUID]bool
+	closedConnectionIDs map[uuid.UUID]bool
+}
+
+var globalWebSocketStats = websocketStats{
+	activeConnectionIDs: map[uuid.UUID]bool{},
+	closedConnectionIDs: map[uuid.UUID]bool{},
+}
+
+// AddActiveConnection adds an active connection id to the list.
+func (ws *websocketStats) AddActiveConnection(id uuid.UUID) {
+	ws.sync.Lock()
+	defer ws.sync.Unlock()
+
+	ws.activeConnectionIDs[id] = true
+}
+
+// AddDeadConnection adds an dead connection id to the list.
+func (ws *websocketStats) AddDeadConnection(id uuid.UUID) {
+	ws.sync.Lock()
+	defer ws.sync.Unlock()
+	delete(ws.activeConnectionIDs, id)
+
+	ws.closedConnectionIDs[id] = true
+}
+
+// GetStats gets the websocket stats.
+func (ws *websocketStats) GetStats() WebSocketStats {
+	ws.sync.Lock()
+	defer ws.sync.Unlock()
+
+	activeIDs := make([]uuid.UUID, 0, len(ws.activeConnectionIDs))
+	for id := range ws.activeConnectionIDs {
+		activeIDs = append(activeIDs, id)
+	}
+
+	return WebSocketStats{
+		ActiveConnectionIDs:    activeIDs,
+		TotalActiveConnections: len(globalWebSocketStats.activeConnectionIDs),
+		TotalClosedConnections: len(globalWebSocketStats.closedConnectionIDs),
+	}
+}
+
+// GetWebSocketStats gets the websocket stats.
+func GetWebSocketStats() WebSocketStats {
+	return globalWebSocketStats.GetStats()
 }
