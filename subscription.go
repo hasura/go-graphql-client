@@ -1530,7 +1530,7 @@ func (wh *WebsocketHandler) Ping() error {
 
 // Close implements the function to close the websocket connection.
 func (wh *WebsocketHandler) Close() error {
-	globalWebSocketStats.AddClosedConnection(wh.id)
+	defaultWebSocketStats.AddClosedConnection(wh.id)
 
 	return wh.Conn.Close(websocket.StatusNormalClosure, "close websocket")
 }
@@ -1577,7 +1577,7 @@ func newWebsocketConn(
 	}
 
 	id := uuid.New()
-	globalWebSocketStats.AddActiveConnection(id)
+	defaultWebSocketStats.AddActiveConnection(id)
 
 	return &WebsocketHandler{
 		Conn:         c,
@@ -1623,61 +1623,4 @@ type WebsocketOptions struct {
 	// Subprotocols hold subprotocol names of the subscription transport
 	// The graphql server depends on the Sec-WebSocket-Protocol header to return the correct message specification
 	Subprotocols []string
-}
-
-// WebSocketStats hold statistic data of WebSocket connections for subscription.
-type WebSocketStats struct {
-	TotalActiveConnections int
-	TotalClosedConnections int
-	ActiveConnectionIDs    []uuid.UUID
-}
-
-type websocketStats struct {
-	sync                sync.Mutex
-	activeConnectionIDs map[uuid.UUID]bool
-	closedConnectionIDs map[uuid.UUID]bool
-}
-
-var globalWebSocketStats = websocketStats{
-	activeConnectionIDs: map[uuid.UUID]bool{},
-	closedConnectionIDs: map[uuid.UUID]bool{},
-}
-
-// AddActiveConnection adds an active connection id to the list.
-func (ws *websocketStats) AddActiveConnection(id uuid.UUID) {
-	ws.sync.Lock()
-	defer ws.sync.Unlock()
-
-	ws.activeConnectionIDs[id] = true
-}
-
-// AddClosedConnection adds an dead connection id to the list.
-func (ws *websocketStats) AddClosedConnection(id uuid.UUID) {
-	ws.sync.Lock()
-	defer ws.sync.Unlock()
-	delete(ws.activeConnectionIDs, id)
-
-	ws.closedConnectionIDs[id] = true
-}
-
-// GetStats gets the websocket stats.
-func (ws *websocketStats) GetStats() WebSocketStats {
-	ws.sync.Lock()
-	defer ws.sync.Unlock()
-
-	activeIDs := make([]uuid.UUID, 0, len(ws.activeConnectionIDs))
-	for id := range ws.activeConnectionIDs {
-		activeIDs = append(activeIDs, id)
-	}
-
-	return WebSocketStats{
-		ActiveConnectionIDs:    activeIDs,
-		TotalActiveConnections: len(globalWebSocketStats.activeConnectionIDs),
-		TotalClosedConnections: len(globalWebSocketStats.closedConnectionIDs),
-	}
-}
-
-// GetWebSocketStats gets the websocket stats.
-func GetWebSocketStats() WebSocketStats {
-	return globalWebSocketStats.GetStats()
 }
