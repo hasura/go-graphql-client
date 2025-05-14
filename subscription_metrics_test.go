@@ -13,7 +13,7 @@ func TestWebSocketStats(t *testing.T) {
 		defaultWebSocketStats.AddActiveConnection(uuid.New())
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 110; i++ {
 		defaultWebSocketStats.AddClosedConnection(uuid.New())
 	}
 
@@ -23,7 +23,7 @@ func TestWebSocketStats(t *testing.T) {
 		t.Errorf("total active connections, expected: %d, got: %d", expected, got)
 	}
 
-	if got, expected := stats.TotalClosedConnections, 100; got != uint(expected) {
+	if got, expected := stats.TotalClosedConnections, 110; got != uint(expected) {
 		t.Errorf("total closed connections, expected: %d, got: %d", expected, got)
 	}
 
@@ -33,7 +33,7 @@ func TestWebSocketStats(t *testing.T) {
 
 	SetMaxClosedConnectionMetricCacheSize(10)
 
-	if got, expected := stats.TotalClosedConnections, 100; got != uint(expected) {
+	if got, expected := stats.TotalClosedConnections, 110; got != uint(expected) {
 		t.Errorf("total closed connections, expected: %d, got: %d", expected, got)
 	}
 
@@ -47,7 +47,7 @@ func TestWebSocketStats(t *testing.T) {
 
 	stats = GetWebSocketStats()
 
-	if got, expected := stats.TotalClosedConnections, 110; got != uint(expected) {
+	if got, expected := stats.TotalClosedConnections, 120; got != uint(expected) {
 		t.Errorf("total closed connections, expected: %d, got: %d", expected, got)
 	}
 
