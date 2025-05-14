@@ -7,6 +7,8 @@ import (
 )
 
 func TestWebSocketStats(t *testing.T) {
+	ResetWebSocketStats()
+
 	for i := 0; i < 10; i++ {
 		defaultWebSocketStats.AddActiveConnection(uuid.New())
 	}
