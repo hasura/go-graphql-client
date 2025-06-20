@@ -443,7 +443,7 @@ func (c *Client) doRequest(
 
 	resp := c.doHttpRequest(ctx, reqReader)
 
-	if options != nil && options.headers != nil {
+	if options != nil && options.headers != nil && resp.response != nil {
 		for key, values := range resp.response.Header {
 			for _, value := range values {
 				options.headers.Add(key, value)
