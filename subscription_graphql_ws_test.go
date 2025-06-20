@@ -576,14 +576,13 @@ func waitForConnectionState(t *testing.T, sc *SubscriptionClient, tickerDuration
 	defer ticker.Stop()
 
 	for {
-		select {
-		case <-ticker.C:
-			if checkFn() {
-				return true
-			}
-			if time.Now().After(deadline) {
-				return false
-			}
+		<-ticker.C
+		if checkFn() {
+			return true
+		}
+
+		if time.Now().After(deadline) {
+			return false
 		}
 	}
 }

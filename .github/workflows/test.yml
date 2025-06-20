@@ -52,7 +52,7 @@ jobs:
           thresholds: "60 80"
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
-        if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         with:
           path: code-coverage-results.md
       - name: Dump docker logs on failure
