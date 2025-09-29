@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -214,7 +213,6 @@ func (c *Client) doHttpRequest(ctx context.Context, body io.ReadSeeker) *rawGrap
 		}
 
 		request.Header.Add("Content-Type", "application/json")
-		request.Header.Add("Accept-Encoding", "gzip")
 
 		if c.requestModifier != nil {
 			c.requestModifier(request)
@@ -337,28 +335,6 @@ func (c *Client) decodeRawGraphQLResponse(
 	resp *http.Response,
 ) *rawGraphQLResult {
 	var r io.Reader = resp.Body
-
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gr, err := gzip.NewReader(r)
-		if err != nil {
-			return &rawGraphQLResult{
-				request:     req,
-				requestBody: reqBody,
-				Errors: Errors{
-					newError(
-						ErrJsonDecode,
-						fmt.Errorf("problem trying to create gzip reader: %w", err),
-					),
-				},
-			}
-		}
-
-		defer func() {
-			_ = gr.Close()
-		}()
-
-		r = gr
-	}
 
 	// copy the response reader for debugging
 	var respReader *bytes.Reader

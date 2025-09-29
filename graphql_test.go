@@ -985,10 +985,10 @@ func TestClient_Query_Compression(t *testing.T) {
 		gw.Close()
 	})
 
-	client := graphql.NewClient(
-		"/graphql",
-		&http.Client{Transport: localRoundTripper{handler: mux}},
-	)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := graphql.NewClient(server.URL+"/graphql", http.DefaultClient)
 
 	var q struct {
 		User struct {
