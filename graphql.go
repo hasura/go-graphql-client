@@ -736,7 +736,9 @@ const (
 	queryOperation operationType = iota
 	mutationOperation
 	// subscriptionOperation // Unused.
+)
 
+const (
 	ErrRequestError            = "request_error"
 	ErrJsonEncode              = "json_encode_error"
 	ErrJsonDecode              = "json_decode_error"
