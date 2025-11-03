@@ -58,14 +58,29 @@ type decoder struct {
 	vs []stack
 }
 
-type stack []reflect.Value
+// stackEntry represents an entry in the decode stack with optional typeName for union types. When
+// typeName is non-nil, only the field matching that typename should be unmarshaled into. The 'key'
+// field tracks which GraphQL field this entry represents.
+type stackEntry struct {
+	value reflect.Value
+	// typeName is non-nil only for union fields which should match __typename
+	typeName *string
+	// key is the GraphQL field name/key which produced this stackEntry
+	key string
+}
 
-func (s stack) Top() reflect.Value {
+type stack []stackEntry
+
+func (s stack) Top() stackEntry {
 	return s[len(s)-1]
 }
 
 func (s stack) Pop() stack {
 	return s[:len(s)-1]
+}
+
+func (s stack) TopValue() reflect.Value {
+	return s[len(s)-1].value
 }
 
 // Decode decodes a single JSON value from d.tokenizer into v.
@@ -75,7 +90,7 @@ func (d *decoder) Decode(v interface{}) error {
 		return fmt.Errorf("cannot decode into non-pointer %T", v)
 	}
 
-	d.vs = []stack{{rv.Elem()}}
+	d.vs = []stack{{stackEntry{value: rv.Elem()}}}
 
 	return d.decode()
 }
@@ -108,8 +123,13 @@ func (d *decoder) decode() error {
 			// If one field is raw all must be treated as raw
 			rawMessage := false
 			isScalar := false
+			currentKey := key
+
+			// First pass: find which stacks have this field
+			fieldResults := make([]reflect.Value, len(d.vs))
 			for i := range d.vs {
-				v := d.vs[i].Top()
+				entry := d.vs[i].Top()
+				v := entry.value
 				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
@@ -134,7 +154,7 @@ func (d *decoder) decode() error {
 				default:
 				}
 
-				d.vs[i] = append(d.vs[i], f)
+				fieldResults[i] = f
 			}
 
 			if !someFieldExist {
@@ -143,6 +163,12 @@ func (d *decoder) decode() error {
 					key,
 					len(d.vs),
 				)
+			}
+
+			// Second pass: append field results to stacks
+			for i := range d.vs {
+				f := fieldResults[i]
+				d.vs[i] = append(d.vs[i], stackEntry{value: f, key: currentKey})
 			}
 
 			if rawMessage || isScalar {
@@ -169,7 +195,8 @@ func (d *decoder) decode() error {
 		case d.state() == '[' && tok != json.Delim(']'):
 			someSliceExist := false
 			for i := range d.vs {
-				v := d.vs[i].Top()
+				entry := d.vs[i].Top()
+				v := entry.value
 				for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 					v = v.Elem()
 				}
@@ -191,7 +218,7 @@ func (d *decoder) decode() error {
 					}
 				}
 
-				d.vs[i] = append(d.vs[i], f)
+				d.vs[i] = append(d.vs[i], stackEntry{value: f, key: ""})
 			}
 
 			if !someSliceExist {
@@ -203,8 +230,11 @@ func (d *decoder) decode() error {
 		case string, json.Number, bool, nil, json.RawMessage:
 			// Value.
 
+			destTypeName := ""
+
 			for i := range d.vs {
-				v := d.vs[i].Top()
+				entry := d.vs[i].Top()
+				v := entry.value
 				if !v.IsValid() {
 					continue
 				}
@@ -213,8 +243,23 @@ func (d *decoder) decode() error {
 				if err != nil {
 					return err
 				}
+
+				// since we _technically_ are unmarshaling into the top of all valid stacks, leading
+				// to duplication, we track the __typename so we can later do a delete of the union
+				// fields which are not named in __typename. This approach was chosen as the path of
+				// least disruption of this decode() function
+				if entry.key == "__typename" {
+					if strVal, ok := tok.(string); ok {
+						destTypeName = strVal
+					}
+				}
 			}
 			d.popAllVs()
+
+			// After popping, if we just unmarshaled __typename, filter union fields
+			if destTypeName != "" {
+				d.filterUnionFieldsByTypeName(destTypeName)
+			}
 		case json.Delim:
 			switch tok {
 			case '{':
@@ -225,7 +270,8 @@ func (d *decoder) decode() error {
 				frontier := make([]reflect.Value, len(d.vs)) // Places to look for GraphQL fragments/embedded structs.
 
 				for i := range d.vs {
-					v := d.vs[i].Top()
+					entry := d.vs[i].Top()
+					v := entry.value
 					frontier[i] = v
 					// TODO: Do this recursively or not? Add a test case if needed.
 					if v.Kind() == reflect.Ptr && v.IsNil() {
@@ -245,10 +291,20 @@ func (d *decoder) decode() error {
 
 					if v.Kind() == reflect.Struct {
 						for i := 0; i < v.NumField(); i++ {
-							if isGraphQLFragment(v.Type().Field(i)) || v.Type().Field(i).Anonymous {
+							field := v.Type().Field(i)
+							if isGraphQLFragment(field) || field.Anonymous {
 								// Add GraphQL fragment or embedded struct.
-								d.vs = append(d.vs, []reflect.Value{v.Field(i)})
-								frontier = append(frontier, v.Field(i))
+								fieldVal := v.Field(i)
+								var typeName *string
+								if isGraphQLFragment(field) {
+									typeName = extractUnionFieldTypeName(field.Tag.Get("graphql"))
+									// Initialize nil pointers in union fields too
+									if fieldVal.Kind() == reflect.Ptr && fieldVal.IsNil() {
+										fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
+									}
+								}
+								d.vs = append(d.vs, []stackEntry{{value: fieldVal, typeName: typeName}})
+								frontier = append(frontier, fieldVal)
 							}
 						}
 					} else if isOrderedMap(v) {
@@ -258,7 +314,10 @@ func (d *decoder) decode() error {
 
 							if keyForGraphQLFragment(key.Interface().(string)) {
 								// Add GraphQL fragment or embedded struct.
-								d.vs = append(d.vs, []reflect.Value{val})
+								keyStr := key.Interface().(string)
+								var typeName *string
+								typeName = extractUnionFieldTypeName(keyStr)
+								d.vs = append(d.vs, []stackEntry{{value: val, typeName: typeName}})
 								frontier = append(frontier, val)
 							}
 						}
@@ -270,7 +329,8 @@ func (d *decoder) decode() error {
 				d.pushState(tok)
 
 				for i := range d.vs {
-					v := d.vs[i].Top()
+					entry := d.vs[i].Top()
+					v := entry.value
 					// TODO: Confirm this is needed, write a test case.
 					// if v.Kind() == reflect.Ptr && v.IsNil() {
 					//	v.Set(reflect.New(v.Type().Elem())) // v = new(T).
@@ -396,12 +456,69 @@ func (d *decoder) popAllVs() {
 // popLeftArrayTemplates pops left from last array items of all d.vs stacks.
 func (d *decoder) popLeftArrayTemplates() {
 	for i := range d.vs {
-		v := d.vs[i].Top()
+		entry := d.vs[i].Top()
+		v := entry.value
 
 		if v.IsValid() {
 			v.Set(v.Slice(1, v.Len()))
 		}
 	}
+}
+
+// extractUnionFieldTypeName extracts the typename from a GraphQL fragment tag like "... on ClosedEvent".
+// Returns a pointer to the type name if it's a valid union field, nil otherwise.
+func extractUnionFieldTypeName(tag string) *string {
+	tag = strings.TrimSpace(tag)
+	if !strings.HasPrefix(tag, "...") {
+		return nil
+	}
+
+	// Extract the type name after "on"
+	parts := strings.Fields(tag)
+	if len(parts) >= 3 && parts[1] == "on" {
+		typeName := strings.TrimSpace(strings.Join(parts[2:], " "))
+		// Cut off anything after the type name (like field arguments)
+		if i := strings.IndexAny(typeName, "(:@"); i != -1 {
+			typeName = typeName[:i]
+		}
+		typeName = strings.TrimSpace(typeName)
+		if typeName != "" {
+			return &typeName
+		}
+	}
+	return nil
+}
+
+// filterUnionFieldsByTypeName filters d.vs to remove union fields that don't match the given typename.
+// This is called after __typename is unmarshaled so we only unmarshal into the correct union variant.
+// We keep stacks that don't have a typeName filter, and only keep union fields that match.
+// For pointer union fields which don't match, we set them back to nil.
+func (d *decoder) filterUnionFieldsByTypeName(typeName string) {
+	var filtered []stack
+
+	for _, st := range d.vs {
+		if len(st) == 0 {
+			filtered = append(filtered, st)
+			continue
+		}
+
+		entry := st[len(st)-1]
+		if entry.typeName == nil {
+			// Not a union field (like the parent struct), keep it
+			filtered = append(filtered, st)
+		} else if *entry.typeName == typeName {
+			// Union field which matches the typename, keep it
+			filtered = append(filtered, st)
+		} else {
+			// Union field doesn't match - set it to nil if it's a pointer
+			v := entry.value
+			if v.Kind() == reflect.Ptr && v.CanSet() {
+				v.Set(reflect.Zero(v.Type()))
+			}
+		}
+	}
+
+	d.vs = filtered
 }
 
 // fieldByGraphQLName returns an exported struct field of struct v

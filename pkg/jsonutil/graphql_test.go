@@ -532,12 +532,66 @@ func TestUnmarshalGraphQL_union(t *testing.T) {
 			},
 			CreatedAt: time.Unix(1498709521, 0).UTC(),
 		},
-		ReopenedEvent: reopenedEvent{
+		// ReopenedEvent should be an empty struct because the named type in the message
+		// (`__typename`) which should be filled  in is `ClosedEvent`, so ReopenedEvent should not
+		// be populated.
+		ReopenedEvent: reopenedEvent{},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Error("not equal")
+	}
+}
+
+func TestUnmarshalGraphQL_unionpointers(t *testing.T) {
+	/*
+		{
+			__typename
+			... on ClosedEvent {
+				createdAt
+				actor {login}
+			}
+			... on ReopenedEvent {
+				createdAt
+				actor {login}
+			}
+		}
+	*/
+	type actor struct{ Login string }
+	type closedEvent struct {
+		Actor     actor
+		CreatedAt time.Time
+	}
+	type reopenedEvent struct {
+		Actor     actor
+		CreatedAt time.Time
+	}
+	type issueTimelineItem struct {
+		Typename      string         `graphql:"__typename"`
+		ClosedEvent   *closedEvent   `graphql:"... on ClosedEvent"`
+		ReopenedEvent *reopenedEvent `graphql:"... on ReopenedEvent"`
+	}
+	var got issueTimelineItem
+	err := jsonutil.UnmarshalGraphQL([]byte(`{
+		"__typename": "ClosedEvent",
+		"createdAt": "2017-06-29T04:12:01Z",
+		"actor": {
+			"login": "shurcooL-test"
+		}
+	}`), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := issueTimelineItem{
+		Typename: "ClosedEvent",
+		ClosedEvent: &closedEvent{
 			Actor: actor{
 				Login: "shurcooL-test",
 			},
 			CreatedAt: time.Unix(1498709521, 0).UTC(),
 		},
+		// ReopenedEvent should be nil because the named type in the message (`__typename`) which
+		// should be filled  in is `ClosedEvent`, so ReopenedEvent should not be populated.
+		ReopenedEvent: nil,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Error("not equal")
@@ -558,10 +612,10 @@ func TestUnmarshalGraphQL_orderedMapUnion(t *testing.T) {
 			}
 		}
 	*/
-	actor := [][2]interface{}{{"login", ""}}
-	closedEvent := [][2]interface{}{{"actor", actor}, {"createdAt", time.Time{}}}
-	reopenedEvent := [][2]interface{}{{"actor", actor}, {"createdAt", time.Time{}}}
-	got := [][2]interface{}{
+	actor := [][2]any{{"login", ""}}
+	closedEvent := [][2]any{{"actor", actor}, {"createdAt", time.Time{}}}
+	reopenedEvent := [][2]any{{"actor", actor}, {"createdAt", time.Time{}}}
+	got := [][2]any{
 		{"__typename", ""},
 		{"... on ClosedEvent", closedEvent},
 		{"... on ReopenedEvent", reopenedEvent},
@@ -576,20 +630,20 @@ func TestUnmarshalGraphQL_orderedMapUnion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := [][2]interface{}{
+	want := [][2]any{
 		{"__typename", "ClosedEvent"},
-		{"... on ClosedEvent", [][2]interface{}{
-			{"actor", [][2]interface{}{{"login", "shurcooL-test"}}},
+		{"... on ClosedEvent", [][2]any{
+			{"actor", [][2]any{{"login", "shurcooL-test"}}},
 			{"createdAt", time.Unix(1498709521, 0).UTC()},
 		}},
-		{"... on ReopenedEvent", [][2]interface{}{
-			{"actor", [][2]interface{}{{"login", "shurcooL-test"}}},
-			{"createdAt", time.Unix(1498709521, 0).UTC()},
-		}},
+		// ReopenedEvent is expected to be the "empty" reopenedEvent because the __typename
+		// indicates that only ClosedEvent should be "filled in". This causes ReopenedEvent to be
+		// ignored and not changed
+		{"... on ReopenedEvent", reopenedEvent},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("not equal:\ngot: %v\nwant: %v", got, want)
-		createdAt := got[1][1].([][2]interface{})[1]
+		createdAt := got[1][1].([][2]any)[1]
 		t.Logf("key: %s, type: %v", createdAt[0], reflect.TypeOf(createdAt[1]))
 	}
 }
