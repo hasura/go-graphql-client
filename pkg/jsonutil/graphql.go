@@ -315,8 +315,7 @@ func (d *decoder) decode() error {
 							if keyForGraphQLFragment(key.Interface().(string)) {
 								// Add GraphQL fragment or embedded struct.
 								keyStr := key.Interface().(string)
-								var typeName *string
-								typeName = extractUnionFieldTypeName(keyStr)
+								typeName := extractUnionFieldTypeName(keyStr)
 								d.vs = append(d.vs, []stackEntry{{value: val, typeName: typeName}})
 								frontier = append(frontier, val)
 							}
