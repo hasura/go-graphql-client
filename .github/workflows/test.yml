@@ -26,17 +26,23 @@ jobs:
           docker compose up -d
       - name: Run Go unit tests for example/subscription
         run: |
-          cd example/subscription
+          rm -rf ./coverage
+          mkdir -p ./coverage/subscription
+          pushd example/subscription
           go get -t -v ./...
-          go test -v -race -timeout 3m ./...
+          popd
+          go test -v -race -timeout 3m -cover ./... -args -test.gocoverdir=$PWD/coverage/subscription ./example/subscription/...
       - name: Run Go unit tests
-        run: go test -v -race -timeout 3m -coverprofile=coverage.out ./...
+        run: |
+          mkdir -p ./coverage/graphql
+          go test -v -race -timeout 3m  -cover ./ ./ident/... ./pkg/... -args -test.gocoverdir=$PWD/coverage/graphql ./...
       - name: Go coverage format
         if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
         run: |
           go get github.com/boumenot/gocover-cobertura
           go install github.com/boumenot/gocover-cobertura
-          gocover-cobertura < coverage.out > coverage.xml
+          go tool covdata textfmt -i=./coverage/subscription,./coverage/graphql -o ./coverage/coverage.out
+          gocover-cobertura < ./coverage/coverage.out > coverage.xml
       - name: Code Coverage Summary Report
         if: ${{ github.event_name == 'pull_request' && github.repository == 'hasura/go-graphql-client' }}
         uses: irongut/CodeCoverageSummary@v1.3.0

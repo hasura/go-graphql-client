@@ -56,7 +56,7 @@ func (stw subscriptionsTransportWS) GetSubprotocols() []string {
 // ConnectionInit sends a initial request to establish a connection within the existing socket.
 func (stw *subscriptionsTransportWS) ConnectionInit(
 	ctx *SubscriptionContext,
-	connectionParams map[string]interface{},
+	connectionParams map[string]any,
 ) error {
 	return connectionInit(ctx, connectionParams)
 }

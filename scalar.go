@@ -47,7 +47,7 @@ func NewBoolean(v Boolean) *Boolean { return &v }
 func NewFloat(v Float) *Float { return &v }
 
 // NewID is a helper to make a new *ID.
-func NewID(v interface{}) *ID {
+func NewID(v any) *ID {
 	rv := ToID(v)
 
 	return &rv
@@ -55,7 +55,7 @@ func NewID(v interface{}) *ID {
 
 // ToID is a helper for if you need to get the string version of an integer or
 // a string for the id.
-func ToID(v interface{}) ID {
+func ToID(v any) ID {
 	var s string
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
