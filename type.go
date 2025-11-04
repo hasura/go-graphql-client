@@ -17,7 +17,7 @@ type GraphQLType interface {
 // GraphQLRequestPayload represents the graphql JSON-encoded request body
 // https://graphql.org/learn/serving-over-http/#post-request
 type GraphQLRequestPayload struct {
-	Query         string                 `json:"query"`
-	Variables     map[string]interface{} `json:"variables,omitempty"`
-	OperationName string                 `json:"operationName,omitempty"`
+	Query         string         `json:"query"`
+	Variables     map[string]any `json:"variables,omitempty"`
+	OperationName string         `json:"operationName,omitempty"`
 }

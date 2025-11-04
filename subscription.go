@@ -105,8 +105,8 @@ func (om OperationMessage) String() string {
 // ReadJSON and WriteJSON data of a frame from the WebSocket connection.
 // Close the WebSocket connection.
 type WebsocketConn interface {
-	ReadJSON(v interface{}) error
-	WriteJSON(v interface{}) error
+	ReadJSON(v any) error
+	WriteJSON(v any) error
 	Ping() error
 	Close() error
 	// SetReadLimit sets the maximum size in bytes for a message read from the peer. If a
@@ -125,7 +125,7 @@ type SubscriptionProtocol interface {
 	// The graphql server depends on the Sec-WebSocket-Protocol header to return the correct message specification
 	GetSubprotocols() []string
 	// ConnectionInit sends a initial request to establish a connection within the existing socket
-	ConnectionInit(ctx *SubscriptionContext, connectionParams map[string]interface{}) error
+	ConnectionInit(ctx *SubscriptionContext, connectionParams map[string]any) error
 	// Subscribe requests an graphql operation specified in the payload message
 	Subscribe(ctx *SubscriptionContext, sub Subscription) error
 	// Unsubscribe sends a request to stop listening and complete the subscription
@@ -156,7 +156,7 @@ type SubscriptionContext struct {
 
 // Log prints condition logging with message type filters.
 func (sc *SubscriptionContext) Log(
-	message interface{},
+	message any,
 	metadata map[string]any,
 	opType OperationMessageType,
 ) {
@@ -379,7 +379,7 @@ func (sc *SubscriptionContext) Close() error {
 }
 
 // Send emits a message to the graphql server.
-func (sc *SubscriptionContext) Send(message interface{}, opType OperationMessageType) error {
+func (sc *SubscriptionContext) Send(message any, opType OperationMessageType) error {
 	if conn := sc.GetWebsocketConn(); conn != nil {
 		sc.Log(message, map[string]any{
 			"source": "client",
@@ -630,8 +630,8 @@ func (s Subscription) Clone() Subscription {
 type SubscriptionClient struct {
 	url                string
 	currentSession     *SubscriptionContext
-	connectionParams   map[string]interface{}
-	connectionParamsFn func() map[string]interface{}
+	connectionParams   map[string]any
+	connectionParamsFn func() map[string]any
 	protocol           SubscriptionProtocol
 	websocketOptions   WebsocketOptions
 	clientStatus       int32
@@ -647,7 +647,7 @@ type SubscriptionClient struct {
 	exitWhenNoSubscription bool
 	syncMode               bool
 	disabledLogTypes       []OperationMessageType
-	log                    func(args ...interface{})
+	log                    func(args ...any)
 	retryStatusCodes       [][]int32
 	rawSubscriptions       map[string]Subscription
 
@@ -693,6 +693,7 @@ func (sc *SubscriptionClient) GetURL() string {
 }
 
 // GetTimeout returns write timeout of websocket client.
+//
 // Deprecated: use GetWriteTimeout instead.
 func (sc *SubscriptionClient) GetTimeout() time.Duration {
 	return sc.websocketOptions.WriteTimeout
@@ -793,7 +794,7 @@ func (sc *SubscriptionClient) WithWebSocketOptions(options WebsocketOptions) *Su
 
 // It's usually used for authentication handshake.
 func (sc *SubscriptionClient) WithConnectionParams(
-	params map[string]interface{},
+	params map[string]any,
 ) *SubscriptionClient {
 	sc.connectionParams = params
 
@@ -802,7 +803,7 @@ func (sc *SubscriptionClient) WithConnectionParams(
 
 // It's suitable for short-lived access tokens that need to be refreshed frequently.
 func (sc *SubscriptionClient) WithConnectionParamsFn(
-	fn func() map[string]interface{},
+	fn func() map[string]any,
 ) *SubscriptionClient {
 	sc.connectionParamsFn = fn
 
@@ -871,6 +872,7 @@ func (sc *SubscriptionClient) WithSyncMode(value bool) *SubscriptionClient {
 }
 
 // WithKeepAlive programs the websocket to ping on the specified interval.
+//
 // Deprecated: rename to WithWebSocketKeepAlive to avoid confusing with the keep-alive specification of the subscription protocol.
 func (sc *SubscriptionClient) WithKeepAlive(interval time.Duration) *SubscriptionClient {
 	sc.websocketKeepAliveInterval = interval
@@ -893,7 +895,7 @@ func (sc *SubscriptionClient) WithRetryDelay(delay time.Duration) *SubscriptionC
 }
 
 // WithLog sets logging function to print out received messages. By default, nothing is printed.
-func (sc *SubscriptionClient) WithLog(logger func(args ...interface{})) *SubscriptionClient {
+func (sc *SubscriptionClient) WithLog(logger func(args ...any)) *SubscriptionClient {
 	sc.log = logger
 
 	return sc
@@ -990,8 +992,8 @@ func (sc *SubscriptionClient) setClientStatus(value int32) {
 
 // The function returns subscription ID and error. You can use subscription ID to unsubscribe the subscription.
 func (sc *SubscriptionClient) Subscribe(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	handler func(message []byte, err error) error,
 	options ...Option,
 ) (string, error) {
@@ -1001,8 +1003,8 @@ func (sc *SubscriptionClient) Subscribe(
 // Deprecated: this is the shortcut of Subscribe method, with NewOperationName option.
 func (sc *SubscriptionClient) NamedSubscribe(
 	name string,
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	handler func(message []byte, err error) error,
 	options ...Option,
 ) (string, error) {
@@ -1012,7 +1014,7 @@ func (sc *SubscriptionClient) NamedSubscribe(
 // Deprecated: use Exec instead.
 func (sc *SubscriptionClient) SubscribeRaw(
 	query string,
-	variables map[string]interface{},
+	variables map[string]any,
 	handler func(message []byte, err error) error,
 ) (string, error) {
 	return sc.doRaw(query, variables, "", handler)
@@ -1021,15 +1023,15 @@ func (sc *SubscriptionClient) SubscribeRaw(
 // Exec sends start message to server and open a channel to receive data, with raw query.
 func (sc *SubscriptionClient) Exec(
 	query string,
-	variables map[string]interface{},
+	variables map[string]any,
 	handler func(message []byte, err error) error,
 ) (string, error) {
 	return sc.doRaw(query, variables, "", handler)
 }
 
 func (sc *SubscriptionClient) do(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	handler func(message []byte, err error) error,
 	options ...Option,
 ) (string, error) {
@@ -1043,7 +1045,7 @@ func (sc *SubscriptionClient) do(
 
 func (sc *SubscriptionClient) doRaw(
 	query string,
-	variables map[string]interface{},
+	variables map[string]any,
 	operationName string,
 	handler func(message []byte, err error) error,
 ) (string, error) {
@@ -1334,7 +1336,7 @@ func (sc *SubscriptionClient) close(session *SubscriptionContext) error {
 	if len(unsubscribeErrors) > 0 {
 		return Error{
 			Message: "failed to close the subscription client",
-			Extensions: map[string]interface{}{
+			Extensions: map[string]any{
 				"unsubscribe": unsubscribeErrors,
 				"protocol":    protocolCloseError,
 				"close":       closeError,
@@ -1423,7 +1425,7 @@ func (sc *SubscriptionClient) checkSubscriptionStatuses(session *SubscriptionCon
 
 // prints condition logging with message type filters.
 func (sc *SubscriptionClient) printLog(
-	message interface{},
+	message any,
 	metadata map[string]any,
 	opType OperationMessageType,
 ) {
@@ -1442,7 +1444,7 @@ func (sc *SubscriptionClient) printLog(
 }
 
 // The payload format of both subscriptions-transport-ws and graphql-ws are the same.
-func connectionInit(conn *SubscriptionContext, connectionParams map[string]interface{}) error {
+func connectionInit(conn *SubscriptionContext, connectionParams map[string]any) error {
 	var bParams []byte = nil
 	var err error
 
@@ -1505,7 +1507,7 @@ func (wh WebsocketHandler) GetID() uuid.UUID {
 }
 
 // WriteJSON implements the function to encode and send message in json format to the server.
-func (wh *WebsocketHandler) WriteJSON(v interface{}) error {
+func (wh *WebsocketHandler) WriteJSON(v any) error {
 	ctx, cancel := context.WithTimeout(wh.ctx, wh.writeTimeout)
 	defer cancel()
 
@@ -1513,7 +1515,7 @@ func (wh *WebsocketHandler) WriteJSON(v interface{}) error {
 }
 
 // ReadJSON implements the function to decode the json message from the server.
-func (wh *WebsocketHandler) ReadJSON(v interface{}) error {
+func (wh *WebsocketHandler) ReadJSON(v any) error {
 	ctx, cancel := context.WithTimeout(wh.ctx, wh.readTimeout)
 	defer cancel()
 

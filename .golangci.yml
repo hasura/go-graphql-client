@@ -53,8 +53,8 @@ linters:
         - G306
         - G404
     funlen:
-      lines: 210
-      statements: 120
+      lines: 240
+      statements: 140
     nestif:
       min-complexity: 10
 

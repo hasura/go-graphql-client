@@ -18,7 +18,7 @@ import (
 //
 // The implementation is created on top of the JSON tokenizer available
 // in "encoding/json".Decoder.
-func UnmarshalGraphQL(data []byte, v interface{}) error {
+func UnmarshalGraphQL(data []byte, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 
@@ -43,7 +43,7 @@ func UnmarshalGraphQL(data []byte, v interface{}) error {
 type decoder struct {
 	tokenizer interface {
 		Token() (json.Token, error)
-		Decode(v interface{}) error
+		Decode(v any) error
 	}
 
 	// Stack of what part of input JSON we're in the middle of - objects, arrays.
@@ -84,7 +84,7 @@ func (s stack) TopValue() reflect.Value {
 }
 
 // Decode decodes a single JSON value from d.tokenizer into v.
-func (d *decoder) Decode(v interface{}) error {
+func (d *decoder) Decode(v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr {
 		return fmt.Errorf("cannot decode into non-pointer %T", v)
@@ -102,7 +102,7 @@ func (d *decoder) decode() error {
 	// The loop invariant is that the top of each d.vs stack
 	// is where we try to unmarshal the next JSON value we see.
 	for len(d.vs) > 0 {
-		var tok interface{}
+		var tok any
 		tok, err := d.tokenizer.Token()
 
 		if errors.Is(err, io.EOF) {
@@ -485,6 +485,7 @@ func extractUnionFieldTypeName(tag string) *string {
 			return &typeName
 		}
 	}
+
 	return nil
 }
 
@@ -498,15 +499,15 @@ func (d *decoder) filterUnionFieldsByTypeName(typeName string) {
 	for _, st := range d.vs {
 		if len(st) == 0 {
 			filtered = append(filtered, st)
+
 			continue
 		}
 
 		entry := st[len(st)-1]
-		if entry.typeName == nil {
-			// Not a union field (like the parent struct), keep it
-			filtered = append(filtered, st)
-		} else if *entry.typeName == typeName {
-			// Union field which matches the typename, keep it
+
+		if entry.typeName == nil || *entry.typeName == typeName {
+			// Not a union field (like the parent struct)
+			// or union field which matches the typename, keep it
 			filtered = append(filtered, st)
 		} else {
 			// Union field doesn't match - set it to nil if it's a pointer
@@ -609,7 +610,7 @@ func keyForGraphQLFragment(value string) bool {
 // unmarshalValue unmarshals JSON value into v.
 // v must be addressable and not obtained by the use of unexported
 // struct fields, otherwise unmarshalValue will panic.
-func unmarshalValue(value interface{}, v reflect.Value) error {
+func unmarshalValue(value any, v reflect.Value) error {
 	b, err := json.Marshal(value) // TODO: Short-circuit (if profiling says it's worth it).
 	if err != nil {
 		return err

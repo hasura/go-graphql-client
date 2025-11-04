@@ -58,8 +58,8 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 }
 
 func constructQuery(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	options ...Option,
 ) (string, *constructOptionsOutput, error) {
 	query, err := query(v)
@@ -96,8 +96,8 @@ func constructQuery(
 
 // ConstructQuery build GraphQL query string from struct and variables.
 func ConstructQuery(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	options ...Option,
 ) (string, error) {
 	query, _, err := constructQuery(v, variables, options...)
@@ -109,8 +109,8 @@ func ConstructQuery(
 }
 
 func constructMutation(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	options ...Option,
 ) (string, *constructOptionsOutput, error) {
 	query, err := query(v)
@@ -147,8 +147,8 @@ func constructMutation(
 
 // ConstructMutation build GraphQL mutation string from struct and variables.
 func ConstructMutation(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	options ...Option,
 ) (string, error) {
 	query, _, err := constructMutation(v, variables, options...)
@@ -161,8 +161,8 @@ func ConstructMutation(
 
 // ConstructSubscription build GraphQL subscription string from struct and variables.
 func ConstructSubscription(
-	v interface{},
-	variables map[string]interface{},
+	v any,
+	variables map[string]any,
 	options ...Option,
 ) (string, string, error) {
 	query, err := query(v)
@@ -200,7 +200,7 @@ func ConstructSubscription(
 // queryArguments constructs a minified arguments string for variables.
 //
 // E.g., map[string]interface{}{"a": int(123), "b": true} -> "$a:Int!$b:Boolean!".
-func queryArguments(variables map[string]interface{}) string {
+func queryArguments(variables map[string]any) string {
 	// Sort keys in order to produce deterministic output for testing purposes.
 	// TODO: If tests can be made to work with non-deterministic output, then no need to sort.
 	keys := make([]string, 0, len(variables))
@@ -228,7 +228,7 @@ func queryArguments(variables map[string]interface{}) string {
 // writeArgumentType writes a minified GraphQL type for t to w.
 // value indicates whether t is a value (required) type or pointer (optional) type.
 // If value is true, then "!" is written at the end of t.
-func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
+func writeArgumentType(w io.Writer, t reflect.Type, v any, value bool) {
 	if t.Implements(graphqlTypeInterface) {
 		var graphqlType GraphQLType
 		var ok bool
@@ -293,7 +293,7 @@ func writeArgumentType(w io.Writer, t reflect.Type, v interface{}, value bool) {
 // a minified query string from the provided struct v.
 //
 // E.g., struct{Foo Int, BarBaz *bool} -> "{foo,barBaz}".
-func query(v interface{}) (string, error) {
+func query(v any) (string, error) {
 	var buf bytes.Buffer
 
 	err := writeQuery(&buf, reflect.TypeOf(v), reflect.ValueOf(v), false)

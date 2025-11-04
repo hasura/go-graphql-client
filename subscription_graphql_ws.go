@@ -39,7 +39,7 @@ func (gws graphqlWS) GetSubprotocols() []string {
 // ConnectionInit sends a initial request to establish a connection within the existing socket.
 func (gws *graphqlWS) ConnectionInit(
 	ctx *SubscriptionContext,
-	connectionParams map[string]interface{},
+	connectionParams map[string]any,
 ) error {
 	return connectionInit(ctx, connectionParams)
 }
