@@ -572,22 +572,16 @@ func (c *Client) processResponse(v any, resp *rawGraphQLResult, extensions any) 
 
 // (i.e. different authentication headers for multitenant applications).
 func (c *Client) WithRequestModifier(f RequestModifier) *Client {
-	return &Client{
-		url:             c.url,
-		httpClient:      c.httpClient,
-		requestModifier: f,
-		debug:           c.debug,
-	}
+	newClient := *c
+	newClient.requestModifier = f
+	return &newClient
 }
 
 // WithDebug enable debug mode to print internal error detail.
 func (c *Client) WithDebug(debug bool) *Client {
-	return &Client{
-		url:             c.url,
-		httpClient:      c.httpClient,
-		requestModifier: c.requestModifier,
-		debug:           debug,
-	}
+	newClient := *c
+	newClient.debug = debug
+	return &newClient
 }
 
 // errors represents the "errors" array in a response from a GraphQL server.

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -1003,5 +1004,39 @@ func TestClient_Query_Compression(t *testing.T) {
 
 	if q.User.Name != "Gopher" {
 		t.Errorf("got invalid q.User.Name: %v, want: Gopher", q.User.Name)
+	}
+}
+
+func TestClient_WithRequestModifier_DoesNotChangeOtherFields(t *testing.T) {
+	client := graphql.NewClient(
+		"http://example.com/graphql",
+		&http.Client{Timeout: 10 * time.Second},
+		graphql.WithRetry(3),
+		graphql.WithRetryBaseDelay(2*time.Second),
+	)
+
+	requestModifier := func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer test-token")
+	}
+
+	clientAfterWithRequestModifier := client.WithRequestModifier(requestModifier).WithRequestModifier(nil)
+
+	if got, want := clientAfterWithRequestModifier, client; !reflect.DeepEqual(got, want) {
+		t.Errorf("got changed fields after WithRequestModifier: %v, want: %v", got, want)
+	}
+}
+
+func TestClient_WithDebug_DoesNotChangeOtherFields(t *testing.T) {
+	client := graphql.NewClient(
+		"http://example.com/graphql",
+		&http.Client{Timeout: 10 * time.Second},
+		graphql.WithRetry(3),
+		graphql.WithRetryBaseDelay(2*time.Second),
+	)
+
+	clientAfterWithDebug := client.WithDebug(true).WithDebug(false)
+
+	if got, want := clientAfterWithDebug, client; !reflect.DeepEqual(got, want) {
+		t.Errorf("got changed fields after WithDebug: %v, want: %v", got, want)
 	}
 }
