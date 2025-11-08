@@ -574,6 +574,7 @@ func (c *Client) processResponse(v any, resp *rawGraphQLResult, extensions any) 
 func (c *Client) WithRequestModifier(f RequestModifier) *Client {
 	newClient := *c
 	newClient.requestModifier = f
+
 	return &newClient
 }
 
@@ -581,6 +582,7 @@ func (c *Client) WithRequestModifier(f RequestModifier) *Client {
 func (c *Client) WithDebug(debug bool) *Client {
 	newClient := *c
 	newClient.debug = debug
+
 	return &newClient
 }
 
