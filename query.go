@@ -49,7 +49,10 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 			if d, ok := option.(fmt.Stringer); ok {
 				output.operationDirectives = append(output.operationDirectives, d.String())
 			} else {
-				return nil, fmt.Errorf("please implement the fmt.Stringer interface for %s option", OptionTypeOperationDirective)
+				return nil, fmt.Errorf(
+					"please implement the fmt.Stringer interface for %s option",
+					OptionTypeOperationDirective,
+				)
 			}
 		}
 	}

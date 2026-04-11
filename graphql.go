@@ -196,107 +196,132 @@ func (c *Client) buildQueryAndOptions(
 
 // execute the http request with backoff retries.
 func (c *Client) doHttpRequest(ctx context.Context, body io.ReadSeeker) *rawGraphQLResult {
+	var result *rawGraphQLResult
+
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		_, _ = body.Seek(0, io.SeekStart)
+		result = c.doHttpRequestAttempt(ctx, body)
+		if result.response == nil {
+			// Return pre-request error.
+			return result
+		}
 
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, body)
-		if err != nil {
-			e := newError(ErrRequestError, fmt.Errorf("problem constructing request: %w", err))
-			if c.debug {
-				_, _ = body.Seek(0, 0)
-				e = e.withRequest(request, body)
+		if result.response.StatusCode >= 400 {
+			if attempt >= c.maxRetries || !c.shouldRetryHttpError(result.response) {
+				return result
 			}
 
-			return &rawGraphQLResult{
-				Errors: Errors{e},
+			time.Sleep(c.getRetryDelay(result.response, attempt))
+
+			continue
+		}
+
+		if len(result.Errors) == 0 {
+			return result
+		}
+
+		if attempt >= c.maxRetries || c.retryOnGraphQLError == nil ||
+			!c.retryOnGraphQLError(result.Errors) {
+			return result
+		}
+
+		time.Sleep(c.getRetryDelay(result.response, attempt))
+	}
+
+	return result
+}
+
+func (c *Client) doHttpRequestAttempt(ctx context.Context, body io.ReadSeeker) *rawGraphQLResult {
+	_, _ = body.Seek(0, io.SeekStart)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, body)
+	if err != nil {
+		e := newError(ErrRequestError, fmt.Errorf("problem constructing request: %w", err))
+
+		return &rawGraphQLResult{
+			Errors:      Errors{e},
+			requestBody: body,
+		}
+	}
+
+	request.Header.Add("Content-Type", "application/json")
+
+	if c.requestModifier != nil {
+		c.requestModifier(request)
+	}
+
+	resp, err := c.httpClient.Do(request)
+	if err != nil {
+		e := newError(ErrRequestError, err)
+
+		return &rawGraphQLResult{
+			Errors:      Errors{e},
+			request:     request,
+			requestBody: body,
+		}
+	}
+
+	defer func() {
+		if resp.Body == nil {
+			return
+		}
+
+		// Make sure that the response body is fully read.
+		_, _ = io.Copy(io.Discard, request.Body)
+		_ = resp.Body.Close()
+	}()
+
+	switch {
+	case resp.StatusCode >= 400:
+		var errorMessage string
+
+		if resp.Body != nil {
+			rawBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				errorMessage = resp.Status
+			} else {
+				errorMessage = string(rawBytes)
 			}
 		}
 
-		request.Header.Add("Content-Type", "application/json")
+		gqlError := newError(ErrRequestError, NetworkError{
+			statusCode: resp.StatusCode,
+			body:       errorMessage,
+		})
 
-		if c.requestModifier != nil {
-			c.requestModifier(request)
+		return &rawGraphQLResult{
+			Errors:      Errors{gqlError},
+			request:     request,
+			requestBody: body,
+			response:    resp,
 		}
-
-		resp, err := c.httpClient.Do(request)
-		if err != nil {
-			e := newError(ErrRequestError, err)
-
-			if c.debug {
-				_, _ = body.Seek(0, io.SeekStart)
-				e = e.withRequest(request, body)
-			}
-
-			return &rawGraphQLResult{
-				Errors: Errors{e},
-			}
-		}
-
-		defer func() {
-			_ = resp.Body.Close()
-		}()
-
-		switch {
-		case resp.StatusCode >= 400:
-			if attempt >= c.maxRetries || !c.shouldRetryHttpError(resp) {
-				errorMessage, err := io.ReadAll(resp.Body)
-				if err != nil {
-					errorMessage = []byte(resp.Status)
-				}
-
-				gqlError := newError(ErrRequestError, NetworkError{
-					statusCode: resp.StatusCode,
-					body:       string(errorMessage),
-				})
-
-				if c.debug {
-					_, _ = body.Seek(0, io.SeekStart)
-					gqlError = gqlError.withRequest(request, body)
-				}
-
-				return &rawGraphQLResult{
-					Errors: Errors{gqlError},
-				}
-			}
-		case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
-			resp := c.decodeRawGraphQLResponse(request, body, resp)
-			if len(resp.Errors) == 0 || !resp.decoded {
-				return resp
-			}
-
-			if attempt >= c.maxRetries || c.retryOnGraphQLError == nil ||
-				!c.retryOnGraphQLError(resp.Errors) {
-				if c.debug &&
-					(resp.Errors[0].Extensions == nil || resp.Errors[0].Extensions["request"] == nil) {
-					_, _ = body.Seek(0, io.SeekStart)
-
-					if resp != nil && resp.responseBody != nil {
-						_, _ = resp.responseBody.Seek(0, io.SeekStart)
-					}
-
-					resp.Errors[0] = resp.Errors[0].
-						withRequest(request, body).
-						withResponse(resp.response, resp.responseBody)
-				}
-
-				return resp
-			}
-		default:
+	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
+		if resp.Body == nil || resp.Body == http.NoBody {
 			return &rawGraphQLResult{
 				Errors: Errors{
 					newError(
 						ErrRequestError,
-						fmt.Errorf("invalid HTTP status code: %d %s", resp.StatusCode, resp.Status),
+						errors.New("expected a body in response, got null"),
 					),
 				},
+				request:     request,
+				requestBody: body,
+				response:    resp,
 			}
 		}
 
-		time.Sleep(c.getRetryDelay(resp, attempt))
-	}
-
-	return &rawGraphQLResult{
-		Errors: Errors{newError(ErrRequestError, errors.New("unreachable code"))},
+		return c.decodeRawGraphQLResponse(request, body, resp)
+	default:
+		return &rawGraphQLResult{
+			Errors: Errors{
+				newError(
+					ErrRequestError,
+					fmt.Errorf("invalid HTTP status code: %d %s", resp.StatusCode, resp.Status),
+				),
+			},
+			request:     request,
+			requestBody: body,
+			response:    resp,
+		}
 	}
 }
 
@@ -334,47 +359,39 @@ func (c *Client) decodeRawGraphQLResponse(
 	reqBody io.ReadSeeker,
 	resp *http.Response,
 ) *rawGraphQLResult {
-	var r io.Reader = resp.Body
-
-	// copy the response reader for debugging
-	var respReader *bytes.Reader
+	var (
+		r io.Reader = resp.Body
+		// copy the response reader for debugging
+		respBody []byte
+		err      error
+	)
 
 	if c.debug {
-		body, err := io.ReadAll(r)
+		respBody, err = io.ReadAll(r)
 		if err != nil {
 			return &rawGraphQLResult{
-				Errors: Errors{newError(ErrJsonDecode, err)},
+				Errors:   Errors{newError(ErrJsonDecode, err)},
+				request:  req,
+				response: resp,
 			}
 		}
 
-		respReader = bytes.NewReader(body)
+		respReader := bytes.NewReader(respBody)
 		r = respReader
 	}
 
 	var out rawGraphQLResult
 
-	err := json.NewDecoder(r).Decode(&out)
+	err = json.NewDecoder(r).Decode(&out)
 	out.request = req
 	out.requestBody = reqBody
 	out.response = resp
-	out.responseBody = respReader
+	out.responseBody = respBody
 
 	if err != nil {
 		we := newError(ErrJsonDecode, err)
-
-		if c.debug {
-			_, _ = reqBody.Seek(0, io.SeekStart)
-			_, _ = respReader.Seek(0, io.SeekStart)
-			we = we.withRequest(req, reqBody).
-				withResponse(resp, respReader)
-		}
-
 		out.Errors = Errors{we}
-
-		return &out
 	}
-
-	out.decoded = true
 
 	return &out
 }
@@ -453,7 +470,7 @@ func (c *Client) doRaw(
 
 	resp := c.doRequest(ctx, query, variables, optionsOutput)
 	if len(resp.Errors) > 0 {
-		return resp.Data, resp.Errors
+		return resp.Data, resp.GetErrors(c.debug)
 	}
 
 	return resp.Data, nil
@@ -511,7 +528,7 @@ func (c *Client) ExecRaw(
 
 	resp := c.doRequest(ctx, query, variables, optionsOutput)
 	if len(resp.Errors) > 0 {
-		return resp.Data, resp.Errors
+		return resp.Data, resp.GetErrors(c.debug)
 	}
 
 	return resp.Data, nil
@@ -533,25 +550,18 @@ func (c *Client) ExecRawWithExtensions(
 
 	resp := c.doRequest(ctx, query, variables, optionsOutput)
 	if len(resp.Errors) > 0 {
-		return resp.Data, resp.Extensions, resp.Errors
+		return resp.Data, resp.Extensions, resp.GetErrors(c.debug)
 	}
 
 	return resp.Data, resp.Extensions, nil
 }
 
 func (c *Client) processResponse(v any, resp *rawGraphQLResult, extensions any) error {
-	errs := resp.Errors
-
 	if len(resp.Data) > 0 {
 		err := jsonutil.UnmarshalGraphQL(resp.Data, v)
 		if err != nil {
 			we := newError(ErrGraphQLDecode, err)
-
-			if c.debug {
-				we = we.withResponse(resp.response, resp.responseBody)
-			}
-
-			errs = append(errs, we)
+			resp.Errors = append(resp.Errors, we)
 		}
 	}
 
@@ -559,12 +569,12 @@ func (c *Client) processResponse(v any, resp *rawGraphQLResult, extensions any) 
 		err := json.Unmarshal(resp.Extensions, extensions)
 		if err != nil {
 			we := newError(ErrGraphQLExtensionsDecode, err)
-			errs = append(errs, we)
+			resp.Errors = append(resp.Errors, we)
 		}
 	}
 
-	if len(errs) > 0 {
-		return errs
+	if len(resp.Errors) > 0 {
+		return resp.GetErrors(c.debug)
 	}
 
 	return nil
@@ -678,18 +688,24 @@ func (e NetworkError) StatusCode() int {
 	return e.statusCode
 }
 
-func (e Error) withRequest(req *http.Request, bodyReader io.Reader) Error {
+func (e Error) withRequest(req *http.Request, bodyReader io.ReadSeeker) Error {
 	internal := e.getInternalExtension()
+	requestData := map[string]any{}
 
-	bodyBytes, err := io.ReadAll(bodyReader)
-	if err != nil {
-		internal["error"] = err
-	} else {
-		internal["request"] = map[string]any{
-			"headers": req.Header,
-			"body":    string(bodyBytes),
+	if req != nil {
+		requestData["headers"] = req.Header
+	}
+
+	if bodyReader != nil {
+		_, _ = bodyReader.Seek(0, io.SeekStart)
+
+		bodyBytes, err := io.ReadAll(bodyReader)
+		if err == nil {
+			requestData["body"] = string(bodyBytes)
 		}
 	}
+
+	internal["request"] = requestData
 
 	if e.Extensions == nil {
 		e.Extensions = make(map[string]any)
@@ -700,21 +716,17 @@ func (e Error) withRequest(req *http.Request, bodyReader io.Reader) Error {
 	return e
 }
 
-func (e Error) withResponse(res *http.Response, bodyReader io.Reader) Error {
+func (e Error) withResponse(res *http.Response, bodyBytes []byte) Error {
 	internal := e.getInternalExtension()
 
 	response := map[string]any{
 		"headers": res.Header,
 	}
 
-	if bodyReader != nil {
-		bodyBytes, err := io.ReadAll(bodyReader)
-		if err != nil {
-			internal["error"] = err
-		} else {
-			response["body"] = string(bodyBytes)
-		}
+	if len(bodyBytes) > 0 {
+		response["body"] = string(bodyBytes)
 	}
+
 	internal["response"] = response
 	e.Extensions["internal"] = internal
 
@@ -749,9 +761,27 @@ type rawGraphQLResult struct {
 	Errors     Errors          `json:"errors"`
 
 	// request and response information
-	decoded      bool
 	request      *http.Request
 	requestBody  io.ReadSeeker
 	response     *http.Response
-	responseBody io.ReadSeeker
+	responseBody []byte
+}
+
+// GetErrors return the list of errors.
+// If debug=true, injects the request and response info into the error.
+func (rgr rawGraphQLResult) GetErrors(debug bool) Errors {
+	if !debug || len(rgr.Errors) == 0 {
+		return rgr.Errors
+	}
+
+	results := append(Errors{}, rgr.Errors...)
+	if rgr.request != nil || rgr.requestBody != nil {
+		results[0] = results[0].withRequest(rgr.request, rgr.requestBody)
+	}
+
+	if rgr.response != nil {
+		results[0] = results[0].withResponse(rgr.response, rgr.responseBody)
+	}
+
+	return results
 }
