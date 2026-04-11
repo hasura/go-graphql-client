@@ -52,14 +52,18 @@ Package `graphql` provides a GraphQL client implementation.
 
 ## Installation
 
-`go-graphql-client` requires Go version 1.20 or later. For older Go versions:
-
-- **>= 1.16 < 1.20**: downgrade the library to version v0.9.x
-- **< 1.16**: downgrade the library version below v0.7.1.
-
 ```bash
 go get -u github.com/hasura/go-graphql-client
 ```
+
+`go-graphql-client` requires Go version 1.23 or later. For older Go versions:
+
+| Version   | Supported Go Versions |
+| --------- | --------------------- |
+| >= v0.16  | >= 1.23               |
+| < v0.16   | < 1.23                |
+| < v0.9.0  | < 1.20                |
+| <= v0.7.1 | < 1.16                |
 
 ## Usage
 

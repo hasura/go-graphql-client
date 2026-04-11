@@ -380,6 +380,7 @@ func (c *Client) decodeRawGraphQLResponse(
 			return &rawGraphQLResult{
 				Errors:        Errors{newError(ErrJsonDecode, err)},
 				request:       req,
+				requestBody:   reqBody,
 				response:      resp,
 				isDecodeError: true,
 			}
