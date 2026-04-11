@@ -1,9 +1,9 @@
 module github.com/hasura/go-graphql-client/example/subscription
 
-go 1.24.0
+go 1.23.0
 
 require (
-	github.com/graph-gophers/graphql-go v1.9.0
+	github.com/graph-gophers/graphql-go v1.7.0
 	github.com/graph-gophers/graphql-transport-ws v0.0.2
 	github.com/hasura/go-graphql-client v0.15.1
 )
