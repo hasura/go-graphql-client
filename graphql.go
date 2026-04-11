@@ -220,6 +220,12 @@ func (c *Client) doHttpRequest(ctx context.Context, body io.ReadSeeker) *rawGrap
 			return result
 		}
 
+		// The response was successful but failed to decode.
+		// The GraphQL server may not implement the correct GraphQL spec. This error is not retryable.
+		if result.isDecodeError {
+			return result
+		}
+
 		if attempt >= c.maxRetries || c.retryOnGraphQLError == nil ||
 			!c.retryOnGraphQLError(result.Errors) {
 			return result
@@ -300,13 +306,14 @@ func (c *Client) doHttpRequestAttempt(ctx context.Context, body io.ReadSeeker) *
 			return &rawGraphQLResult{
 				Errors: Errors{
 					newError(
-						ErrRequestError,
+						ErrJsonDecode,
 						errors.New("expected a body in response, got null"),
 					),
 				},
-				request:     request,
-				requestBody: body,
-				response:    resp,
+				request:       request,
+				requestBody:   body,
+				response:      resp,
+				isDecodeError: true,
 			}
 		}
 
@@ -371,9 +378,10 @@ func (c *Client) decodeRawGraphQLResponse(
 		respBody, err = io.ReadAll(r)
 		if err != nil {
 			return &rawGraphQLResult{
-				Errors:   Errors{newError(ErrJsonDecode, err)},
-				request:  req,
-				response: resp,
+				Errors:        Errors{newError(ErrJsonDecode, err)},
+				request:       req,
+				response:      resp,
+				isDecodeError: true,
 			}
 		}
 
@@ -392,6 +400,7 @@ func (c *Client) decodeRawGraphQLResponse(
 	if err != nil {
 		we := newError(ErrJsonDecode, err)
 		out.Errors = Errors{we}
+		out.isDecodeError = true
 	}
 
 	return &out
@@ -756,10 +765,11 @@ type rawGraphQLResult struct {
 	Errors     Errors          `json:"errors"`
 
 	// request and response information
-	request      *http.Request
-	requestBody  io.ReadSeeker
-	response     *http.Response
-	responseBody []byte
+	request       *http.Request
+	requestBody   io.ReadSeeker
+	response      *http.Response
+	responseBody  []byte
+	isDecodeError bool
 }
 
 // GetErrors return the list of errors.
