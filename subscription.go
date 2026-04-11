@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,9 +29,8 @@ type SubscriptionStatus int32
 
 const (
 	// internal state machine status.
-	scStatusInitializing int32 = 0
-	scStatusRunning      int32 = 1
-	scStatusClosing      int32 = 2
+	scStatusRunning int32 = 1
+	scStatusClosing int32 = 2
 
 	// SubscriptionWaiting the subscription hasn't been registered to the server.
 	SubscriptionWaiting SubscriptionStatus = 0
@@ -279,12 +280,8 @@ func (sc *SubscriptionContext) GetSubscriptionsLength(status []SubscriptionStatu
 	count := 0
 
 	for _, sub := range sc.subscriptions {
-		for _, s := range status {
-			if sub.status == s {
-				count++
-
-				break
-			}
+		if slices.Contains(status, sub.status) {
+			count++
 		}
 	}
 
@@ -297,9 +294,7 @@ func (sc *SubscriptionContext) GetSubscriptions() map[string]Subscription {
 	defer sc.mutex.Unlock()
 
 	newMap := make(map[string]Subscription)
-	for k, v := range sc.subscriptions {
-		newMap[k] = v
-	}
+	maps.Copy(newMap, sc.subscriptions)
 
 	return newMap
 }
@@ -634,7 +629,6 @@ type SubscriptionClient struct {
 	connectionParamsFn func() map[string]any
 	protocol           SubscriptionProtocol
 	websocketOptions   WebsocketOptions
-	clientStatus       int32
 	createConn         CreateWebSocketConnFunc
 
 	readLimit                       int64 // max size of response message. Default 10 MB
@@ -644,12 +638,10 @@ type SubscriptionClient struct {
 	websocketKeepAliveInterval      time.Duration
 	retryDelay                      time.Duration
 
-	exitWhenNoSubscription bool
-	syncMode               bool
-	disabledLogTypes       []OperationMessageType
-	log                    func(args ...any)
-	retryStatusCodes       [][]int32
-	rawSubscriptions       map[string]Subscription
+	disabledLogTypes []OperationMessageType
+	log              func(args ...any)
+	retryStatusCodes [][]int32
+	rawSubscriptions map[string]Subscription
 
 	// user-defined callback events
 	onConnected            func()
@@ -661,6 +653,10 @@ type SubscriptionClient struct {
 	errorChan chan error
 	cancel    context.CancelFunc
 	mutex     sync.Mutex
+
+	clientStatus           atomic.Int32
+	exitWhenNoSubscription bool
+	syncMode               bool
 }
 
 // NewSubscriptionClient constructs new subscription client.
@@ -982,12 +978,12 @@ func (sc *SubscriptionClient) setCurrentSession(value *SubscriptionContext) {
 
 // get internal client status.
 func (sc *SubscriptionClient) getClientStatus() int32 {
-	return atomic.LoadInt32(&sc.clientStatus)
+	return sc.clientStatus.Load()
 }
 
 // set the running atomic lock status.
 func (sc *SubscriptionClient) setClientStatus(value int32) {
-	atomic.StoreInt32(&sc.clientStatus, value)
+	sc.clientStatus.Store(value)
 }
 
 // The function returns subscription ID and error. You can use subscription ID to unsubscribe the subscription.
@@ -1403,9 +1399,7 @@ func (sc *SubscriptionClient) getRawSubscriptions() map[string]Subscription {
 
 	result := make(map[string]Subscription)
 
-	for key, sub := range sc.rawSubscriptions {
-		result[key] = sub
-	}
+	maps.Copy(result, sc.rawSubscriptions)
 
 	return result
 }
@@ -1433,10 +1427,8 @@ func (sc *SubscriptionClient) printLog(
 		return
 	}
 
-	for _, ty := range sc.disabledLogTypes {
-		if ty == opType {
-			return
-		}
+	if slices.Contains(sc.disabledLogTypes, opType) {
+		return
 	}
 
 	metadata["type"] = opType

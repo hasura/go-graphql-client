@@ -49,7 +49,10 @@ func constructOptions(options []Option) (*constructOptionsOutput, error) {
 			if d, ok := option.(fmt.Stringer); ok {
 				output.operationDirectives = append(output.operationDirectives, d.String())
 			} else {
-				return nil, fmt.Errorf("please implement the fmt.Stringer interface for %s option", OptionTypeOperationDirective)
+				return nil, fmt.Errorf(
+					"please implement the fmt.Stringer interface for %s option",
+					OptionTypeOperationDirective,
+				)
 			}
 		}
 	}
@@ -329,7 +332,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 
 		iter := 0
 
-		for i := 0; i < t.NumField(); i++ {
+		for i := range t.NumField() {
 			f := t.Field(i)
 			value, ok := f.Tag.Lookup("graphql")
 			// Skip this field if the tag value is hyphen
@@ -382,7 +385,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		sliceOfPairs := v
 		_, _ = io.WriteString(w, "{")
 
-		for i := 0; i < sliceOfPairs.Len(); i++ {
+		for i := range sliceOfPairs.Len() {
 			pair := sliceOfPairs.Index(i)
 			// it.Value() returns interface{}, so we need to use reflect.ValueOf
 			// to cast it away
@@ -434,9 +437,9 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 }
 
 var (
-	jsonUnmarshaler      = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-	idType               = reflect.TypeOf(ID(""))
-	graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
+	jsonUnmarshaler      = reflect.TypeFor[json.Unmarshaler]()
+	idType               = reflect.TypeFor[ID]()
+	graphqlTypeInterface = reflect.TypeFor[GraphQLType]()
 )
 
 func isTrue(s string) bool {

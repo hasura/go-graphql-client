@@ -772,7 +772,7 @@ func TestClientOption_WithRetry_maxRetriesExceeded(t *testing.T) {
 		t.Fatal("got nil, want error")
 	}
 
-	latency := time.Now().Sub(start)
+	latency := time.Since(start)
 	// Check that we got the max retries exceeded error
 	var gqlErrs graphql.Errors
 	if !errors.As(err, &gqlErrs) {
@@ -836,7 +836,7 @@ func TestClientOption_WithRetryAfter(t *testing.T) {
 		t.Fatal("got nil, want error")
 	}
 
-	latency := time.Now().Sub(start)
+	latency := time.Since(start)
 	// Check that we got the max retries exceeded error
 	var gqlErrs graphql.Errors
 	if !errors.As(err, &gqlErrs) {

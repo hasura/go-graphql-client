@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -85,11 +86,11 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 	client, subscriptionClient := hasura_setupClients(GraphQLWS)
 	msg := randomID()
 
-	hasKeepAlive := false
+	hasKeepAlive := atomic.Bool{}
 
 	subscriptionClient = subscriptionClient.
 		OnConnectionAlive(func() {
-			hasKeepAlive = true
+			hasKeepAlive.Store(true)
 		}).
 		OnError(func(sc *SubscriptionClient, err error) error {
 			return err
@@ -182,7 +183,7 @@ func TestGraphqlWS_Subscription(t *testing.T) {
 
 	<-stop
 
-	if !hasKeepAlive {
+	if !hasKeepAlive.Load() {
 		t.Fatalf("expected OnConnectionAlive event, got none")
 	}
 }
