@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -52,11 +53,8 @@ func (ws *websocketStats) AddClosedConnection(id uuid.UUID) {
 	defer ws.sync.Unlock()
 	delete(ws.activeConnectionIDs, id)
 
-	for _, item := range ws.closedConnectionIDs {
-		// do not increase if the connection id already exists in the queue
-		if item == id {
-			return
-		}
+	if slices.Contains(ws.closedConnectionIDs, id) {
+		return
 	}
 
 	ws.totalClosedConnections++
@@ -114,7 +112,7 @@ func SetMaxClosedConnectionMetricCacheSize(size uint) {
 	newSlice := make([]uuid.UUID, maxClosedConnectionCacheSize)
 	startIndex := len(defaultWebSocketStats.closedConnectionIDs) - maxClosedConnectionCacheSize
 
-	for i := 0; i < maxClosedConnectionCacheSize; i++ {
+	for i := range maxClosedConnectionCacheSize {
 		newSlice[i] = defaultWebSocketStats.closedConnectionIDs[startIndex+i]
 	}
 

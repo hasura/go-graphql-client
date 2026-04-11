@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -279,12 +281,8 @@ func (sc *SubscriptionContext) GetSubscriptionsLength(status []SubscriptionStatu
 	count := 0
 
 	for _, sub := range sc.subscriptions {
-		for _, s := range status {
-			if sub.status == s {
-				count++
-
-				break
-			}
+		if slices.Contains(status, sub.status) {
+			count++
 		}
 	}
 
@@ -297,9 +295,7 @@ func (sc *SubscriptionContext) GetSubscriptions() map[string]Subscription {
 	defer sc.mutex.Unlock()
 
 	newMap := make(map[string]Subscription)
-	for k, v := range sc.subscriptions {
-		newMap[k] = v
-	}
+	maps.Copy(newMap, sc.subscriptions)
 
 	return newMap
 }
@@ -634,7 +630,7 @@ type SubscriptionClient struct {
 	connectionParamsFn func() map[string]any
 	protocol           SubscriptionProtocol
 	websocketOptions   WebsocketOptions
-	clientStatus       int32
+	clientStatus       atomic.Int32
 	createConn         CreateWebSocketConnFunc
 
 	readLimit                       int64 // max size of response message. Default 10 MB
@@ -982,12 +978,12 @@ func (sc *SubscriptionClient) setCurrentSession(value *SubscriptionContext) {
 
 // get internal client status.
 func (sc *SubscriptionClient) getClientStatus() int32 {
-	return atomic.LoadInt32(&sc.clientStatus)
+	return sc.clientStatus.Load()
 }
 
 // set the running atomic lock status.
 func (sc *SubscriptionClient) setClientStatus(value int32) {
-	atomic.StoreInt32(&sc.clientStatus, value)
+	sc.clientStatus.Store(value)
 }
 
 // The function returns subscription ID and error. You can use subscription ID to unsubscribe the subscription.
@@ -1403,9 +1399,7 @@ func (sc *SubscriptionClient) getRawSubscriptions() map[string]Subscription {
 
 	result := make(map[string]Subscription)
 
-	for key, sub := range sc.rawSubscriptions {
-		result[key] = sub
-	}
+	maps.Copy(result, sc.rawSubscriptions)
 
 	return result
 }
@@ -1433,10 +1427,8 @@ func (sc *SubscriptionClient) printLog(
 		return
 	}
 
-	for _, ty := range sc.disabledLogTypes {
-		if ty == opType {
-			return
-		}
+	if slices.Contains(sc.disabledLogTypes, opType) {
+		return
 	}
 
 	metadata["type"] = opType

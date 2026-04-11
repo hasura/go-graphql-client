@@ -25,6 +25,7 @@ linters:
     - containedctx
     - maintidx
     - noinlineerr
+    - intrange
   settings:
     exhaustive:
       # Program elements to check for exhaustiveness.

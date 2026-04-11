@@ -267,7 +267,10 @@ func (d *decoder) decode() error {
 
 				d.pushState(tok)
 
-				frontier := make([]reflect.Value, len(d.vs)) // Places to look for GraphQL fragments/embedded structs.
+				frontier := make(
+					[]reflect.Value,
+					len(d.vs),
+				) // Places to look for GraphQL fragments/embedded structs.
 
 				for i := range d.vs {
 					entry := d.vs[i].Top()
@@ -303,7 +306,10 @@ func (d *decoder) decode() error {
 										fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
 									}
 								}
-								d.vs = append(d.vs, []stackEntry{{value: fieldVal, typeName: typeName}})
+								d.vs = append(
+									d.vs,
+									[]stackEntry{{value: fieldVal, typeName: typeName}},
+								)
 								frontier = append(frontier, fieldVal)
 							}
 						}

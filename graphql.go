@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -398,13 +399,7 @@ func (c *Client) decodeRawGraphQLResponse(
 
 // shouldRetryHttpError determines whether the request should be retried by the http status code.
 func (c *Client) shouldRetryHttpError(resp *http.Response) bool {
-	for _, status := range c.retryHttpStatus {
-		if status == resp.StatusCode {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(c.retryHttpStatus, resp.StatusCode)
 }
 
 // doRequest sends graphql request.

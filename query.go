@@ -437,9 +437,9 @@ func FieldSafe(valStruct reflect.Value, i int) reflect.Value {
 }
 
 var (
-	jsonUnmarshaler      = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-	idType               = reflect.TypeOf(ID(""))
-	graphqlTypeInterface = reflect.TypeOf((*GraphQLType)(nil)).Elem()
+	jsonUnmarshaler      = reflect.TypeFor[json.Unmarshaler]()
+	idType               = reflect.TypeFor[ID]()
+	graphqlTypeInterface = reflect.TypeFor[GraphQLType]()
 )
 
 func isTrue(s string) bool {
