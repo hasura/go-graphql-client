@@ -96,7 +96,7 @@ func (d *decoder) Decode(v any) error {
 }
 
 // decode decodes a single JSON value from d.tokenizer into d.vs.
-func (d *decoder) decode() error {
+func (d *decoder) decode() error { //nolint:funlen
 	rawMessageValue := reflect.ValueOf(json.RawMessage{})
 
 	// The loop invariant is that the top of each d.vs stack
@@ -293,7 +293,7 @@ func (d *decoder) decode() error {
 					}
 
 					if v.Kind() == reflect.Struct {
-						for i := 0; i < v.NumField(); i++ {
+						for i := range v.NumField() {
 							field := v.Type().Field(i)
 							if isGraphQLFragment(field) || field.Anonymous {
 								// Add GraphQL fragment or embedded struct.
@@ -314,7 +314,7 @@ func (d *decoder) decode() error {
 							}
 						}
 					} else if isOrderedMap(v) {
-						for i := 0; i < v.Len(); i++ {
+						for i := range v.Len() {
 							pair := v.Index(i)
 							key, val := pair.Index(0), pair.Index(1)
 
@@ -416,7 +416,7 @@ func isOrderedMap(v reflect.Value) bool {
 
 func copyOrderedMap(m reflect.Value) reflect.Value {
 	newMap := reflect.MakeSlice(m.Type(), 0, m.Len())
-	for i := 0; i < m.Len(); i++ {
+	for i := range m.Len() {
 		pair := m.Index(i)
 		newMap = reflect.Append(newMap, pair)
 	}
@@ -530,7 +530,7 @@ func (d *decoder) filterUnionFieldsByTypeName(typeName string) {
 // fieldByGraphQLName returns an exported struct field of struct v
 // that matches GraphQL name, or invalid reflect.Value if none found.
 func fieldByGraphQLName(v reflect.Value, name string) (reflect.Value, bool) {
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		if v.Type().Field(i).PkgPath != "" {
 			// Skip unexported field.
 			continue
@@ -547,7 +547,7 @@ func fieldByGraphQLName(v reflect.Value, name string) (reflect.Value, bool) {
 // orderedMapValueByGraphQLName takes [][2]string, interprets it as an ordered map
 // and returns value for corresponding key, or invalid reflect.Value if none found.
 func orderedMapValueByGraphQLName(v reflect.Value, name string) reflect.Value {
-	for i := 0; i < v.Len(); i++ {
+	for i := range v.Len() {
 		pair := v.Index(i)
 		key := pair.Index(0).Interface().(string)
 

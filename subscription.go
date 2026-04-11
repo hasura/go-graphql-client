@@ -29,9 +29,8 @@ type SubscriptionStatus int32
 
 const (
 	// internal state machine status.
-	scStatusInitializing int32 = 0
-	scStatusRunning      int32 = 1
-	scStatusClosing      int32 = 2
+	scStatusRunning int32 = 1
+	scStatusClosing int32 = 2
 
 	// SubscriptionWaiting the subscription hasn't been registered to the server.
 	SubscriptionWaiting SubscriptionStatus = 0
@@ -630,7 +629,6 @@ type SubscriptionClient struct {
 	connectionParamsFn func() map[string]any
 	protocol           SubscriptionProtocol
 	websocketOptions   WebsocketOptions
-	clientStatus       atomic.Int32
 	createConn         CreateWebSocketConnFunc
 
 	readLimit                       int64 // max size of response message. Default 10 MB
@@ -640,12 +638,10 @@ type SubscriptionClient struct {
 	websocketKeepAliveInterval      time.Duration
 	retryDelay                      time.Duration
 
-	exitWhenNoSubscription bool
-	syncMode               bool
-	disabledLogTypes       []OperationMessageType
-	log                    func(args ...any)
-	retryStatusCodes       [][]int32
-	rawSubscriptions       map[string]Subscription
+	disabledLogTypes []OperationMessageType
+	log              func(args ...any)
+	retryStatusCodes [][]int32
+	rawSubscriptions map[string]Subscription
 
 	// user-defined callback events
 	onConnected            func()
@@ -657,6 +653,10 @@ type SubscriptionClient struct {
 	errorChan chan error
 	cancel    context.CancelFunc
 	mutex     sync.Mutex
+
+	clientStatus           atomic.Int32
+	exitWhenNoSubscription bool
+	syncMode               bool
 }
 
 // NewSubscriptionClient constructs new subscription client.

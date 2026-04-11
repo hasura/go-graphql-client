@@ -267,7 +267,7 @@ func (c *Client) doHttpRequestAttempt(ctx context.Context, body io.ReadSeeker) *
 		}
 
 		// Make sure that the response body is fully read.
-		_, _ = io.Copy(io.Discard, request.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
 

@@ -332,7 +332,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 
 		iter := 0
 
-		for i := 0; i < t.NumField(); i++ {
+		for i := range t.NumField() {
 			f := t.Field(i)
 			value, ok := f.Tag.Lookup("graphql")
 			// Skip this field if the tag value is hyphen
@@ -385,7 +385,7 @@ func writeQuery(w io.Writer, t reflect.Type, v reflect.Value, inline bool) error
 		sliceOfPairs := v
 		_, _ = io.WriteString(w, "{")
 
-		for i := 0; i < sliceOfPairs.Len(); i++ {
+		for i := range sliceOfPairs.Len() {
 			pair := sliceOfPairs.Index(i)
 			// it.Value() returns interface{}, so we need to use reflect.ValueOf
 			// to cast it away
