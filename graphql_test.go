@@ -648,6 +648,268 @@ func TestClient_Exec_QueryRawWithExtensions(t *testing.T) {
 	}
 }
 
+// Issue: https://github.com/hasura/go-graphql-client/issues/139
+func TestUnmarshalGraphQL_unionSlice(t *testing.T) {
+	expectedQuery := `query($cursor0: String, $searchQuery: String!) {
+		search(type: ISSUE, query: $searchQuery, first: 100, after: $cursor0) {
+			pageInfo {
+				endCursor
+				hasNextPage
+			}
+			nodes {
+				... on Issue {
+					number
+					id
+					createdAt
+					updatedAt
+					state
+					stateReason
+					closedAt
+					author {
+						login
+					}
+					authorAssociation
+					title
+					body
+				}
+			}
+		}`
+
+	type PageInfo struct {
+		EndCursor   string
+		HasNextPage bool
+	}
+
+	type issue struct {
+		Number      int64
+		ID          string
+		CreatedAt   time.Time
+		UpdatedAt   time.Time
+		State       string
+		StateReason *string
+		ClosedAt    *time.Time
+		Author      struct {
+			Login string
+		}
+		AuthorAssociation string
+		Title             string
+		Body              string
+	}
+
+	type querySearch struct {
+		PageInfo PageInfo
+		Nodes    []issue
+	}
+
+	type queryIssues struct {
+		// results
+		Search querySearch
+	}
+
+	want := queryIssues{
+		Search: querySearch{
+			PageInfo: PageInfo{
+				EndCursor:   "Y3Vyc29yOjE=",
+				HasNextPage: false,
+			},
+			Nodes: []issue{
+				{
+					Number:    32,
+					ID:        "I_kwDOJBmYg86J6maD",
+					CreatedAt: time.Date(2024, 05, 23, 21, 03, 9, 0, time.UTC),
+					UpdatedAt: time.Date(2024, 05, 28, 15, 42, 2, 0, time.UTC),
+					State:     "OPEN",
+					Author: struct{ Login string }{
+						Login: "drewAdorno",
+					},
+					AuthorAssociation: "NONE",
+					Title:             "subdomains not redirecting",
+					Body:              "Hi,\r\nI was able to configure and successfully use localias in was wsl env (ubuntu 22.04)",
+				},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{
+			"data": {
+				"search": {
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOjE=",
+						"hasNextPage": false
+					},
+					"nodes": [
+						{
+							"number": 32,
+							"id": "I_kwDOJBmYg86J6maD",
+							"createdAt": "2024-05-23T21:03:09Z",
+							"updatedAt": "2024-05-28T15:42:02Z",
+							"state": "OPEN",
+							"stateReason": null,
+							"closedAt": null,
+							"author": {
+								"login": "drewAdorno"
+							},
+							"authorAssociation": "NONE",
+							"title": "subdomains not redirecting",
+							"body": "Hi,\r\nI was able to configure and successfully use localias in was wsl env (ubuntu 22.04)"
+						}
+					]
+				}
+			}
+		}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var got queryIssues
+	err := client.Exec(context.Background(), expectedQuery, &got, map[string]interface{}{
+		"searchQuery": "test",
+		"cursor0":     "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("got %+v, want: %+v", got, want)
+	}
+}
+
+// Issue: https://github.com/hasura/go-graphql-client/issues/152
+func TestUnmarshalGraphQL_shopifyAdminAPI(t *testing.T) {
+
+	type testQuery struct {
+		Orders struct {
+			Edges []struct {
+				Cursor string
+				Node   struct {
+					ID                       string
+					Test                     bool
+					Name                     string
+					Email                    *string
+					DisplayFinancialStatus   string
+					DisplayFulfillmentStatus string
+					ReturnStatus             string
+					Note                     string
+					ClientIP                 string
+					Closed                   bool
+					ClosedAt                 *time.Time
+					CancelledAt              *time.Time
+					CustomAttributes         []struct {
+						Key   string
+						Value string
+					}
+					Customer struct {
+						Email string
+					}
+				}
+			}
+			PageInfo struct {
+				EndCursor   string
+				HasNextPage bool
+			}
+		} `graphql:"orders(first: $first, after: $after)"`
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mustWrite(w, `{
+			"data": {
+				"orders": {
+					"edges": [
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1004",
+								"email": null,
+								"displayFinancialStatus": "PAID",
+								"displayFulfillmentStatus": "UNFULFILLED",
+								"returnStatus": "NO_RETURN",
+								"note": "unfulfilled",
+								"clientIp": "x",
+								"closed": false,
+								"closedAt": null,
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						},
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1005",
+								"email": null,
+								"displayFinancialStatus": "REFUNDED",
+								"displayFulfillmentStatus": "FULFILLED",
+								"returnStatus": "NO_RETURN",
+								"note": "fulfilled then refunded (not returned)",
+								"clientIp": "x",
+								"closed": true,
+								"closedAt": "2024-08-29T02:07:04Z",
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						},
+						{
+							"cursor": "x==",
+							"node": {
+								"id": "gid://shopify/Order/x",
+								"test": false,
+								"name": "#1006",
+								"email": null,
+								"displayFinancialStatus": "PAID",
+								"displayFulfillmentStatus": "FULFILLED",
+								"returnStatus": "IN_PROGRESS",
+								"note": "fulfulled and return in progress",
+								"clientIp": "x",
+								"closed": false,
+								"closedAt": null,
+								"cancelledAt": null,
+								"customAttributes": [],
+								"customer": null
+							}
+						}
+					],
+					"pageInfo": {
+						"endCursor": "x==",
+						"hasNextPage": false
+					}
+				}
+			},
+			"extensions": {
+				"cost": {
+					"requestedQueryCost": 8,
+					"actualQueryCost": 8,
+					"throttleStatus": {
+						"maximumAvailable": 2000.0,
+						"currentlyAvailable": 1992,
+						"restoreRate": 100.0
+					}
+				}
+			}
+		}`)
+	})
+	client := graphql.NewClient("/graphql", &http.Client{Transport: localRoundTripper{handler: mux}})
+
+	var got testQuery
+
+	err := client.Query(context.Background(), &got, map[string]interface{}{
+		"first": 10,
+		"after": "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // localRoundTripper is an http.RoundTripper that executes HTTP transactions
 // by using handler directly, instead of going over an HTTP connection.
 type localRoundTripper struct {
